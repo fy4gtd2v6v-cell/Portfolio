@@ -9,7 +9,7 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   Preise trägst du **manuell** ein (€/g, €/oz oder €/kg).
 - **Aktien & ETFs**: Kurse per [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
   (kostenloser Key, 25 Abfragen/Tag). Kurse in USD/GBP/CHF werden mit EZB-Kursen
-  ([Frankfurter](https://www.frankfurter.app)) in Euro umgerechnet.
+  ([Frankfurter](https://frankfurter.dev)) in Euro umgerechnet.
 - **Krypto**: Kurse per [CoinGecko](https://www.coingecko.com/en/api) – ohne Key nutzbar.
 - Mehrere Käufe pro Position, Einstandspreis, Gewinn/Verlust, Aufteilung nach Anlageklasse.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).

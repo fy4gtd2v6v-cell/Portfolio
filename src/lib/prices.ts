@@ -6,7 +6,7 @@ export class PriceError extends Error {}
 
 const ALPHA_VANTAGE = 'https://www.alphavantage.co/query';
 const COINGECKO = 'https://api.coingecko.com/api/v3';
-const FRANKFURTER = 'https://api.frankfurter.app/latest';
+const FRANKFURTER = 'https://api.frankfurter.dev/v1/latest';
 
 async function getJson(f: FetchFn, url: string, init?: RequestInit): Promise<any> {
   let res: Response;
@@ -15,6 +15,7 @@ async function getJson(f: FetchFn, url: string, init?: RequestInit): Promise<any
   } catch {
     throw new PriceError('Keine Verbindung zum Kursdienst.');
   }
+  if (res.status === 429) throw new PriceError('Zu viele Anfragen – bitte in einer Minute erneut versuchen.');
   if (!res.ok) throw new PriceError(`Kursdienst antwortet mit HTTP ${res.status}.`);
   return res.json();
 }
