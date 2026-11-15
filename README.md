@@ -6,7 +6,8 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 
 - **Edelmetalle in Gramm**: Gold, Silber, Platin, Palladium. Gewicht in g, kg oder Feinunzen eingeben,
   mit Feingehalt in ‰ (z. B. 999,9 oder 916,7 für Krügerrand) – bewertet wird nach Feingewicht.
-  Preise trägst du **manuell** ein (€/g, €/oz oder €/kg).
+  Preise kommen wahlweise **live** als Börsenpreis (Spot, über [gold-api.com](https://gold-api.com),
+  ohne Key) oder **manuell** (€/g, €/oz oder €/kg), z. B. der Ankaufspreis deines Händlers.
 - **Aktien & ETFs**: Kurse per [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
   (kostenloser Key, 25 Abfragen/Tag). Kurse in USD/GBP/CHF werden mit EZB-Kursen
   ([Frankfurter](https://frankfurter.dev)) in Euro umgerechnet.
@@ -27,7 +28,7 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 - **Kein Zurücksetzen**: Ohne Passwort sind die Daten nicht wiederherstellbar.
 - **Verschlüsselter Export**: Mit aktivem Passwortschutz ist auch die Sicherungsdatei verschlüsselt.
 - **Content-Security-Policy**: Die gebaute Seite führt nur ihr eigenes (per Hash festgelegtes)
-  Skript aus und darf ausschließlich die drei Kursdienste kontaktieren.
+  Skript aus und darf ausschließlich die vier Kursdienste kontaktieren.
 - Grenzen: Der Schutz gilt für gespeicherte Daten. Solange die App entsperrt ist, kann Schadsoftware
   oder eine bösartige Browser-Erweiterung auf dem Rechner mitlesen. Der Alpha-Vantage-Key wird
   (von der API so vorgegeben) als Teil der Adresse an alphavantage.co gesendet.

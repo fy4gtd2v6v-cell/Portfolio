@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchEurRates, FetchFn, refreshQuotes } from './prices';
+import { fetchEurRates, fetchMetalPricesEur, FetchFn, refreshQuotes } from './prices';
 import { emptyState, PortfolioState } from './types';
 
 const json = (body: unknown, status = 200) =>
@@ -18,7 +18,7 @@ function mockFetch(routes: Record<string, unknown>): FetchFn & { calls: string[]
 
 const base = (): PortfolioState => ({
   ...emptyState(),
-  settings: { alphaVantageKey: 'demo', coingeckoKey: '' },
+  settings: { alphaVantageKey: 'demo', coingeckoKey: '', metalMode: 'live' },
   holdings: [
     { id: '1', assetClass: 'crypto', name: 'Bitcoin', coinId: 'bitcoin', purchases: [] },
     { id: '2', assetClass: 'stock', name: 'Apple', symbol: 'AAPL', currency: 'USD', purchases: [] },
@@ -73,5 +73,48 @@ describe('refreshQuotes', () => {
     const f = mockFetch({ 'simple/price': { bitcoin: { eur: 1 } }, frankfurter: { rates: { USD: 1 } } });
     const r = await refreshQuotes(s, { f, stockDelayMs: 0, now });
     expect(r.errors[0]).toMatch(/API-Key/);
+  });
+});
+
+describe('metal prices', () => {
+  const goldHolding = { id: 'g', assetClass: 'metal' as const, name: 'Barren', metal: 'gold' as const, fineness: 999.9, purchases: [] };
+  const routes = {
+    'price/XAU': { currency: 'USD', price: 3110.34768, symbol: 'XAU', updatedAt: '2026-11-15T17:11:57Z' },
+    'price/XAG': { currency: 'USD', price: 31.1034768, symbol: 'XAG' },
+    frankfurter: { rates: { USD: 1.25 } },
+  };
+
+  it('converts USD per troy ounce into EUR per gram', async () => {
+    const p = await fetchMetalPricesEur(['gold', 'silver'], mockFetch(routes));
+    expect(p.gold).toMatchObject({ source: 'api', updatedAt: '2026-11-15T17:11:57Z' });
+    expect(p.gold!.eurPerGram).toBeCloseTo(80, 9); // 3110.35 $/oz * 0.8 €/$ / 31.1035 g
+    expect(p.silver!.eurPerGram).toBeCloseTo(0.8, 9);
+  });
+
+  it('refreshes the metals of the holdings in live mode', async () => {
+    const s = { ...emptyState(), holdings: [goldHolding] };
+    const f = mockFetch(routes);
+    const r = await refreshQuotes(s, { f, now });
+    expect(r.errors).toEqual([]);
+    expect(r.metalPrices.gold!.eurPerGram).toBeCloseTo(80, 9);
+    expect(f.calls.some((c) => c.includes('XAG'))).toBe(false); // only metals that are held
+  });
+
+  it('leaves manual prices alone in manual mode', async () => {
+    const s = { ...emptyState(), holdings: [goldHolding] };
+    s.settings.metalMode = 'manual';
+    s.metalPrices.gold = { eurPerGram: 75, updatedAt: 'x', source: 'manual' };
+    const f = mockFetch(routes);
+    const r = await refreshQuotes(s, { f, now });
+    expect(r.metalPrices.gold!.eurPerGram).toBe(75);
+    expect(f.calls).toEqual([]);
+  });
+
+  it('reports a metal the service cannot price and keeps the old value', async () => {
+    const s = { ...emptyState(), holdings: [{ ...goldHolding, metal: 'platinum' as const }] };
+    s.metalPrices.platinum = { eurPerGram: 40, updatedAt: 'x', source: 'api' };
+    const r = await refreshQuotes(s, { f: mockFetch({ frankfurter: { rates: { USD: 1.25 } } }), now });
+    expect(r.errors[0]).toMatch(/Edelmetalle/);
+    expect(r.metalPrices.platinum!.eurPerGram).toBe(40);
   });
 });

@@ -5,8 +5,8 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
-/** The only hosts the app may talk to: the three price services. */
-const API_HOSTS = ['https://api.coingecko.com', 'https://www.alphavantage.co', 'https://api.frankfurter.dev'];
+/** The only hosts the app may talk to: the price services. */
+const API_HOSTS = ['https://api.coingecko.com', 'https://www.alphavantage.co', 'https://api.frankfurter.dev', 'https://api.gold-api.com'];
 
 /**
  * Adds a strict Content-Security-Policy to the built page: only the inlined

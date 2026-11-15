@@ -66,6 +66,6 @@ export function clearStored(): void {
 
 /** Export without API keys. Encrypted with the vault when password protection is on. */
 export async function exportState(state: PortfolioState, vault: Vault | null): Promise<string> {
-  const json = JSON.stringify({ ...state, settings: { alphaVantageKey: '', coingeckoKey: '' } }, null, 2);
+  const json = JSON.stringify({ ...state, settings: { ...state.settings, alphaVantageKey: '', coingeckoKey: '' } }, null, 2);
   return vault ? JSON.stringify(await encryptText(vault, json), null, 2) : json;
 }
