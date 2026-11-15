@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Overview } from './components/Overview';
 import { HoldingsView } from './components/Holdings';
 import { LockScreen } from './components/LockScreen';
+import { Logo } from './components/Logo';
+import { RecoveryCodeNotice } from './components/RecoveryCode';
 import { MetalPrices } from './components/MetalPrices';
 import { SettingsView } from './components/Settings';
 import { Envelope, Vault } from './lib/crypto';
@@ -26,7 +28,7 @@ export type Update = (fn: (s: PortfolioState) => PortfolioState) => void;
 
 type Session =
   | { status: 'locked'; envelope: Envelope }
-  | { status: 'open'; id: number; state: PortfolioState; vault: Vault | null };
+  | { status: 'open'; id: number; state: PortfolioState; vault: Vault | null; recoveryCode?: string };
 
 function initialSession(): Session {
   const stored = readStored();
@@ -42,7 +44,7 @@ export default function App() {
     return (
       <LockScreen
         envelope={session.envelope}
-        onUnlock={(state, vault) => setSession({ status: 'open', id: Date.now(), state, vault })}
+        onUnlock={(state, vault, recoveryCode) => setSession({ status: 'open', id: Date.now(), state, vault, recoveryCode })}
         onReset={() => {
           clearStored();
           setSession({ status: 'open', id: Date.now(), state: emptyState(), vault: null });
@@ -57,6 +59,7 @@ export default function App() {
       key={session.id}
       initial={session.state}
       initialVault={session.vault}
+      initialRecoveryCode={session.recoveryCode}
       onLocked={() => {
         const stored = readStored();
         if (stored.kind === 'encrypted') setSession({ status: 'locked', envelope: stored.envelope });
@@ -65,9 +68,15 @@ export default function App() {
   );
 }
 
-function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioState; initialVault: Vault | null; onLocked: () => void }) {
+function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
+  initial: PortfolioState;
+  initialVault: Vault | null;
+  initialRecoveryCode?: string;
+  onLocked: () => void;
+}) {
   const [state, setState] = useState<PortfolioState>(initial);
   const [vault, setVault] = useState<Vault | null>(initialVault);
+  const [recoveryCode, setRecoveryCode] = useState<string | undefined>(initialRecoveryCode);
   const [tab, setTab] = useState<Tab>('overview');
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; lines: string[] } | null>(null);
@@ -124,7 +133,7 @@ function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioStat
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Portfolio</h1>
+        <div className="brand"><Logo /><h1>Portfolio</h1></div>
         <nav className="tabs" aria-label="Bereiche">
           {TABS.map(([id, label]) => (
             <button key={id} className={tab === id ? 'tab active' : 'tab'} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
@@ -146,11 +155,13 @@ function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioStat
         </div>
       )}
 
+      {recoveryCode && <RecoveryCodeNotice code={recoveryCode} onDone={() => setRecoveryCode(undefined)} />}
+
       <main>
         {tab === 'overview' && <Overview state={state} onGoto={setTab} />}
         {tab === 'holdings' && <HoldingsView state={state} update={update} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
-        {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} />}
+        {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
       </main>
     </div>
   );

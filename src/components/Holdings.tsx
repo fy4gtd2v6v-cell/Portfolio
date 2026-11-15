@@ -18,7 +18,7 @@ export function HoldingsView({ state, update }: { state: PortfolioState; update:
       {adding ? (
         <AddHolding state={state} update={update} onDone={() => setAdding(false)} />
       ) : (
-        <button className="primary" onClick={() => setAdding(true)}>+ Neue Position</button>
+        <button className="primary add-position" onClick={() => setAdding(true)}>+ Neue Position</button>
       )}
       {state.holdings.map((h) => (
         <HoldingCard key={h.id} holding={h} state={state} update={update} />

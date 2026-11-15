@@ -25,7 +25,10 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   Browser gespeichert; der Schlüssel wird per PBKDF2-SHA256 (600.000 Runden) aus dem Passwort
   abgeleitet und existiert nur im Arbeitsspeicher. Die App sperrt sich nach 10 Minuten ohne
   Eingabe, per „Sperren“-Knopf und beim Schließen des Tabs.
-- **Kein Zurücksetzen**: Ohne Passwort sind die Daten nicht wiederherstellbar.
+- **Passwort vergessen**: Beim Aktivieren wird einmalig ein Wiederherstellungsschlüssel angezeigt.
+  Damit lässt sich auf dem Sperrbildschirm ein neues Passwort setzen, ohne Daten zu verlieren.
+  Technisch ist der zufällige Datenschlüssel zweimal verschlüsselt abgelegt – einmal mit dem
+  Passwort, einmal mit dem Wiederherstellungsschlüssel. Ohne beides sind die Daten nicht lesbar.
 - **Verschlüsselter Export**: Mit aktivem Passwortschutz ist auch die Sicherungsdatei verschlüsselt.
 - **Content-Security-Policy**: Die gebaute Seite führt nur ihr eigenes (per Hash festgelegtes)
   Skript aus und darf ausschließlich die vier Kursdienste kontaktieren.

@@ -114,6 +114,7 @@ export function HistoryChart({ history }: { history: Snapshot[] }) {
           {xTicks.map((ms, i) => (
             <text key={i} x={sx(ms)} y={H - 8} className="axis-label" textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}>{fmtDay(ms)}</text>
           ))}
+          <path d={`${path('value')}L${sx(t(last.date)).toFixed(1)},${sy(y0).toFixed(1)}L${sx(x0).toFixed(1)},${sy(y0).toFixed(1)}Z`} className="area-value" />
           <path d={path('cost')} className="line-cost" />
           <path d={path('value')} className="line-value" />
           {data.length <= 40 && data.map((d) => (
