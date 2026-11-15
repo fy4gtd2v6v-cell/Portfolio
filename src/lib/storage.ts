@@ -13,6 +13,7 @@ export function parseState(json: string): PortfolioState {
     ...data,
     metalPrices: data.metalPrices ?? {},
     quotes: data.quotes ?? {},
+    history: Array.isArray(data.history) ? data.history : [],
     settings: { ...base.settings, ...(data.settings ?? {}) },
   };
 }

@@ -18,12 +18,26 @@ export const CLASS_LABEL: Record<AssetClass, string> = {
   crypto: 'Krypto',
 };
 
-/** One purchase lot. Quantity: grams (metal, gross weight), shares (stock), coins (crypto). */
+/**
+ * One transaction. Quantity: grams (metal, gross weight), shares (stock), coins (crypto), always positive.
+ * Buy: totalCost is the price paid incl. fees. Sell: totalCost is the proceeds after fees.
+ */
 export interface Purchase {
   id: string;
+  /** missing in data saved before sales existed, means 'buy' */
+  kind?: 'buy' | 'sell';
   date: string; // YYYY-MM-DD
   quantity: number;
-  totalCost: number; // EUR incl. fees
+  totalCost: number; // EUR
+}
+
+/** Daily record of the portfolio value, used for the history chart. */
+export interface Snapshot {
+  date: string; // YYYY-MM-DD
+  value: number;
+  /** open cost basis of the valued holdings */
+  cost: number;
+  byClass: Partial<Record<AssetClass, number>>;
 }
 
 export interface Holding {
@@ -68,6 +82,7 @@ export interface PortfolioState {
   metalPrices: Partial<Record<Metal, MetalPrice>>;
   /** keyed by quoteKey(holding) */
   quotes: Record<string, Quote>;
+  history: Snapshot[];
   settings: Settings;
 }
 
@@ -83,6 +98,7 @@ export function emptyState(): PortfolioState {
     holdings: [],
     metalPrices: {},
     quotes: {},
+    history: [],
     settings: { alphaVantageKey: '', coingeckoKey: '' },
   };
 }

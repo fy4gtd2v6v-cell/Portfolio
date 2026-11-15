@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { HistoryChart } from './HistoryChart';
 import { summarize, valueHolding } from '../lib/portfolio';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
 import { AssetClass, CLASS_LABEL, METAL_LABEL, PortfolioState } from '../lib/types';
@@ -26,7 +27,9 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
 
   const gainClass = s.gain > 0 ? 'pos' : s.gain < 0 ? 'neg' : '';
   const max = Math.max(...s.byClass.map((c) => c.value), 1);
-  const metals = state.holdings.filter((h) => h.assetClass === 'metal');
+  const open = state.holdings.filter((h) => !valueHolding(h, state).closed);
+  const closed = state.holdings.filter((h) => valueHolding(h, state).closed);
+  const metals = open.filter((h) => h.assetClass === 'metal');
   const gramsByMetal = new Map<string, number>();
   for (const h of metals) {
     const v = valueHolding(h, state);
@@ -48,7 +51,17 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
         <div className="stat">
           <div className="stat-label">Investiert</div>
           <div className="stat-value">{fmtEur(s.totalCost)}</div>
+          {Math.abs(s.realized) > 0.005 && (
+            <div className="stat-sub">
+              Realisiert durch Verkäufe: <span className={s.realized > 0 ? 'pos' : 'neg'}>{fmtSignedEur(s.realized)}</span>
+            </div>
+          )}
         </div>
+      </section>
+
+      <section className="card">
+        <h2>Wertverlauf</h2>
+        <HistoryChart history={state.history} />
       </section>
 
       {s.unpriced.length > 0 && (
@@ -109,7 +122,7 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
               </tr>
             </thead>
             <tbody>
-              {state.holdings.map((h) => {
+              {open.map((h) => {
                 const v = valueHolding(h, state);
                 const cls = v.gain === undefined ? '' : v.gain > 0 ? 'pos' : v.gain < 0 ? 'neg' : '';
                 return (
@@ -152,6 +165,15 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
             </tbody>
           </table>
         </div>
+        {closed.length > 0 && (
+          <p className="muted small">
+            Vollständig verkauft:{' '}
+            {closed.map((h) => {
+              const r = valueHolding(h, state).realized;
+              return `${h.name} (${fmtSignedEur(r)})`;
+            }).join(' · ')}
+          </p>
+        )}
       </section>
     </>
   );

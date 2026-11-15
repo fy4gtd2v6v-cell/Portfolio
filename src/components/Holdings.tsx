@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Update } from '../App';
-import { fmtEur, fmtNum, parseNum, today } from '../lib/format';
-import { valueHolding } from '../lib/portfolio';
+import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
+import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
 import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from '../lib/prices';
 import {
   AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
@@ -29,14 +29,15 @@ export function HoldingsView({ state, update }: { state: PortfolioState; update:
 
 // ---------------- Purchase input (shared) ----------------
 
-interface PurchaseDraft { date: string; quantity: string; unit: WeightUnit; totalCost: string }
-const emptyDraft = (): PurchaseDraft => ({ date: today(), quantity: '', unit: 'g', totalCost: '' });
+interface PurchaseDraft { kind: 'buy' | 'sell'; date: string; quantity: string; unit: WeightUnit; totalCost: string }
+const emptyDraft = (): PurchaseDraft => ({ kind: 'buy', date: today(), quantity: '', unit: 'g', totalCost: '' });
 
 function PurchaseFields({ draft, set, isMetal }: { draft: PurchaseDraft; set: (d: PurchaseDraft) => void; isMetal: boolean }) {
+  const sell = draft.kind === 'sell';
   return (
     <div className="grid">
       <label className="field">
-        <span>Kaufdatum</span>
+        <span>{sell ? 'Verkaufsdatum' : 'Kaufdatum'}</span>
         <input type="date" value={draft.date} onChange={(e) => set({ ...draft, date: e.target.value })} />
       </label>
       <label className="field">
@@ -53,7 +54,7 @@ function PurchaseFields({ draft, set, isMetal }: { draft: PurchaseDraft; set: (d
         </div>
       </label>
       <label className="field">
-        <span>Kaufpreis gesamt in € (inkl. Gebühren)</span>
+        <span>{sell ? 'Verkaufserlös gesamt in € (nach Gebühren)' : 'Kaufpreis gesamt in € (inkl. Gebühren)'}</span>
         <input inputMode="decimal" placeholder="z. B. 7.450,00" value={draft.totalCost} onChange={(e) => set({ ...draft, totalCost: e.target.value })} />
       </label>
     </div>
@@ -63,10 +64,10 @@ function PurchaseFields({ draft, set, isMetal }: { draft: PurchaseDraft; set: (d
 function toPurchase(d: PurchaseDraft, isMetal: boolean): Purchase | string {
   const q = parseNum(d.quantity);
   const c = parseNum(d.totalCost);
-  if (!d.date) return 'Bitte ein Kaufdatum angeben.';
+  if (!d.date) return 'Bitte ein Datum angeben.';
   if (!(q > 0)) return 'Bitte eine Menge größer 0 eingeben.';
-  if (!(c >= 0)) return 'Bitte einen gültigen Kaufpreis eingeben.';
-  return { id: newId(), date: d.date, quantity: isMetal ? toGrams(q, d.unit) : q, totalCost: c };
+  if (!(c >= 0)) return d.kind === 'sell' ? 'Bitte einen gültigen Verkaufserlös eingeben.' : 'Bitte einen gültigen Kaufpreis eingeben.';
+  return { id: newId(), kind: d.kind, date: d.date, quantity: isMetal ? toGrams(q, d.unit) : q, totalCost: c };
 }
 
 // ---------------- Add holding ----------------
@@ -280,9 +281,13 @@ function HoldingCard({ holding: h, state, update }: { holding: Holding; state: P
     e.preventDefault();
     const p = toPurchase(draft, isMetal);
     if (typeof p === 'string') return setError(p);
+    const next = sortTransactions([...h.purchases, p]);
+    if (p.kind === 'sell' && applyFifo(next).oversoldBy) {
+      return setError(`Der Verkauf ist größer als der Bestand am ${new Date(p.date).toLocaleDateString('de-DE')}.`);
+    }
     setError('');
-    setHolding((x) => ({ ...x, purchases: [...x.purchases, p].sort((a, b) => a.date.localeCompare(b.date)) }));
-    setDraft(emptyDraft());
+    setHolding((x) => ({ ...x, purchases: next }));
+    setDraft({ ...emptyDraft(), kind: draft.kind });
   }
 
   function saveManualPrice() {
@@ -307,8 +312,15 @@ function HoldingCard({ holding: h, state, update }: { holding: Holding; state: P
           {h.coinId && ` · ${h.coinId}`}
         </div>
         <div className="holding-summary">
-          {isMetal ? `${fmtNum(v.quantity, 2)} g (fein ${fmtNum(v.fineGrams ?? 0, 2)} g)` : `${fmtNum(v.quantity, 8)} Stück`}
-          {' · '}{v.value !== undefined ? fmtEur(v.value) : 'kein Kurs'}
+          {v.closed ? 'vollständig verkauft' : (
+            <>
+              {isMetal ? `${fmtNum(v.quantity, 2)} g (fein ${fmtNum(v.fineGrams ?? 0, 2)} g)` : `${fmtNum(v.quantity, 8)} Stück`}
+              {' · '}{v.value !== undefined ? fmtEur(v.value) : 'kein Kurs'}
+            </>
+          )}
+          {Math.abs(v.realized) > 0.005 && (
+            <span className={v.realized > 0 ? 'pos' : 'neg'}> · realisiert {fmtSignedEur(v.realized)}</span>
+          )}
         </div>
       </div>
 
@@ -317,18 +329,19 @@ function HoldingCard({ holding: h, state, update }: { holding: Holding; state: P
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Datum</th><th className="num">{isMetal ? 'Gewicht' : 'Menge'}</th><th className="num">Kaufpreis</th><th className="num">{isMetal ? '€/g' : '€/Stück'}</th><th /></tr>
+                <tr><th>Datum</th><th>Art</th><th className="num">{isMetal ? 'Gewicht' : 'Menge'}</th><th className="num">Betrag</th><th className="num">{isMetal ? '€/g' : '€/Stück'}</th><th /></tr>
               </thead>
               <tbody>
                 {h.purchases.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} className={p.id === v.oversoldBy ? 'row-error' : ''}>
                     <td>{new Date(p.date).toLocaleDateString('de-DE')}</td>
+                    <td>{p.kind === 'sell' ? 'Verkauf' : 'Kauf'}</td>
                     <td className="num">{fmtNum(p.quantity, isMetal ? 2 : 8)}{isMetal && ' g'}</td>
                     <td className="num">{fmtEur(p.totalCost)}</td>
                     <td className="num">{fmtEur(p.totalCost / p.quantity)}</td>
                     <td className="num">
                       <button className="link danger" onClick={() => {
-                        if (confirm('Kauf löschen?')) setHolding((x) => ({ ...x, purchases: x.purchases.filter((y) => y.id !== p.id) }));
+                        if (confirm(`${p.kind === 'sell' ? 'Verkauf' : 'Kauf'} löschen?`)) setHolding((x) => ({ ...x, purchases: x.purchases.filter((y) => y.id !== p.id) }));
                       }}>Löschen</button>
                     </td>
                   </tr>
@@ -337,10 +350,22 @@ function HoldingCard({ holding: h, state, update }: { holding: Holding; state: P
             </table>
           </div>
 
+          {v.oversoldBy && (
+            <div className="field-error">Ein Verkauf (rot markiert) übersteigt den Bestand zu seinem Datum. Bitte Datum oder Menge prüfen.</div>
+          )}
+
           <form onSubmit={addPurchase}>
-            <h3>Weiteren Kauf hinzufügen</h3>
+            <h3>Kauf oder Verkauf erfassen</h3>
+            <div className="segmented" role="radiogroup" aria-label="Art">
+              {(['buy', 'sell'] as const).map((k) => (
+                <button type="button" key={k} role="radio" aria-checked={draft.kind === k} className={draft.kind === k ? 'active' : ''}
+                  onClick={() => setDraft({ ...draft, kind: k })} disabled={k === 'sell' && v.closed}>
+                  {k === 'buy' ? 'Kauf' : 'Verkauf'}
+                </button>
+              ))}
+            </div>
             <PurchaseFields draft={draft} set={setDraft} isMetal={isMetal} />
-            <button type="submit">Kauf hinzufügen</button>
+            <button type="submit">{draft.kind === 'sell' ? 'Verkauf erfassen' : 'Kauf erfassen'}</button>
           </form>
 
           {!isMetal && (

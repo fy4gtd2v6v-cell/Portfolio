@@ -3,6 +3,8 @@ import { Overview } from './components/Overview';
 import { HoldingsView } from './components/Holdings';
 import { MetalPrices } from './components/MetalPrices';
 import { SettingsView } from './components/Settings';
+import { today } from './lib/format';
+import { withSnapshot } from './lib/portfolio';
 import { refreshQuotes } from './lib/prices';
 import { loadState, saveState } from './lib/storage';
 import { PortfolioState } from './lib/types';
@@ -26,6 +28,11 @@ export default function App() {
 
   useEffect(() => {
     setSaveFailed(!saveState(state));
+  }, [state]);
+
+  // Record today's value for the history chart; returns the same object when nothing changed.
+  useEffect(() => {
+    setState((s) => withSnapshot(s, today()));
   }, [state]);
 
   const update: Update = (fn) => setState((s) => fn(s));
