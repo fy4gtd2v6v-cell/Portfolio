@@ -1,4 +1,5 @@
-import { Currency, CURRENCIES, Holding, PortfolioState, Quote, quoteKey } from './types';
+import { Currency, CURRENCIES, Holding, Metal, METAL_LABEL, MetalPrice, METALS, PortfolioState, Quote, quoteKey } from './types';
+import { GRAMS_PER_TROY_OUNCE } from './units';
 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -7,6 +8,7 @@ export class PriceError extends Error {}
 const ALPHA_VANTAGE = 'https://www.alphavantage.co/query';
 const COINGECKO = 'https://api.coingecko.com/api/v3';
 const FRANKFURTER = 'https://api.frankfurter.dev/v1/latest';
+const GOLD_API = 'https://api.gold-api.com/price';
 
 async function getJson(f: FetchFn, url: string, init?: RequestInit): Promise<any> {
   let res: Response;
@@ -94,6 +96,37 @@ export async function searchStocks(query: string, apiKey: string, f: FetchFn = f
   }));
 }
 
+// ---------- Precious metals: gold-api.com (spot prices in USD per troy ounce, no key) ----------
+
+const METAL_SYMBOL: Record<Metal, string> = { gold: 'XAU', silver: 'XAG', platinum: 'XPT', palladium: 'XPD' };
+
+export interface MetalSpot {
+  usdPerOunce: number;
+  updatedAt?: string;
+}
+
+/** Spot prices keyed by metal. Metals the service cannot price are missing from the result. */
+export async function fetchMetalSpots(metals: Metal[], f: FetchFn = fetch): Promise<Partial<Record<Metal, MetalSpot>>> {
+  const out: Partial<Record<Metal, MetalSpot>> = {};
+  const results = await Promise.allSettled(
+    metals.map(async (m) => {
+      const data = await getJson(f, `${GOLD_API}/${METAL_SYMBOL[m]}`);
+      const price = data?.price;
+      if (typeof price !== 'number' || !(price > 0) || (data.currency && data.currency !== 'USD')) return;
+      const t = typeof data.updatedAt === 'string' && !Number.isNaN(Date.parse(data.updatedAt)) ? data.updatedAt : undefined;
+      out[m] = { usdPerOunce: price, updatedAt: t };
+    }),
+  );
+  // If nothing could be fetched at all, surface the reason (e.g. no connection).
+  const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+  if (failed && Object.keys(out).length === 0) throw failed.reason;
+  return out;
+}
+
+export function spotToEurPerGram(usdPerOunce: number, eurPerUsd: number): number {
+  return (usdPerOunce * eurPerUsd) / GRAMS_PER_TROY_OUNCE;
+}
+
 // ---------- FX: Frankfurter (ECB rates, no key) ----------
 
 /** Returns how many EUR one unit of each currency is worth. */
@@ -109,6 +142,19 @@ export async function fetchEurRates(currencies: Currency[], f: FetchFn = fetch):
   return out;
 }
 
+/** Live spot prices converted to EUR per gram, for the given metals. */
+export async function fetchMetalPricesEur(metals: Metal[], f: FetchFn = fetch): Promise<Partial<Record<Metal, MetalPrice>>> {
+  const [rates, spots] = await Promise.all([fetchEurRates(['USD'], f), fetchMetalSpots(metals, f)]);
+  if (rates.USD === undefined) throw new PriceError('Kein Wechselkurs USD→EUR.');
+  const now = new Date().toISOString();
+  const out: Partial<Record<Metal, MetalPrice>> = {};
+  for (const m of metals) {
+    const spot = spots[m];
+    if (spot) out[m] = { eurPerGram: spotToEurPerGram(spot.usdPerOunce, rates.USD), updatedAt: spot.updatedAt ?? now, source: 'api' };
+  }
+  return out;
+}
+
 export function isCurrency(c: string): c is Currency {
   return (CURRENCIES as string[]).includes(c);
 }
@@ -117,6 +163,7 @@ export function isCurrency(c: string): c is Currency {
 
 export interface RefreshResult {
   quotes: Record<string, Quote>;
+  metalPrices: PortfolioState['metalPrices'];
   errors: string[];
   updated: number;
 }
@@ -129,12 +176,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function refreshQuotes(
   state: PortfolioState,
-  opts: { f?: FetchFn; stockDelayMs?: number; now?: () => Date } = {},
+  opts: { f?: FetchFn; stockDelayMs?: number; now?: () => Date; metals?: Metal[] } = {},
 ): Promise<RefreshResult> {
   const f = opts.f ?? fetch;
   const delay = opts.stockDelayMs ?? 1200;
   const now = (opts.now ?? (() => new Date()))().toISOString();
   const quotes = { ...state.quotes };
+  const metalPrices = { ...state.metalPrices };
   const errors: string[] = [];
   let updated = 0;
 
@@ -161,13 +209,46 @@ export async function refreshQuotes(
     }
   }
 
-  if (stockBySymbol.size) {
-    let rates: Partial<Record<Currency, number>> = { EUR: 1 };
+  // Metals: explicitly requested ones, or (in live mode) those of the open holdings.
+  const metals =
+    opts.metals ??
+    (state.settings.metalMode === 'manual'
+      ? []
+      : METALS.filter((m) => state.holdings.some((h) => h.assetClass === 'metal' && h.metal === m)));
+
+  let rates: Partial<Record<Currency, number>> = { EUR: 1 };
+  const currencies: Currency[] = [...stocks.map((h) => h.currency ?? 'EUR'), ...(metals.length ? ['USD' as const] : [])];
+  if (currencies.some((c) => c !== 'EUR')) {
     try {
-      rates = await fetchEurRates(stocks.map((h) => h.currency ?? 'EUR'), f);
+      rates = await fetchEurRates(currencies, f);
     } catch (e) {
       errors.push(`Wechselkurse: ${(e as Error).message}`);
     }
+  }
+
+  if (metals.length) {
+    if (rates.USD === undefined) {
+      errors.push('Edelmetalle: kein Wechselkurs USD→EUR.');
+    } else {
+      try {
+        const spots = await fetchMetalSpots(metals, f);
+        for (const m of metals) {
+          const spot = spots[m];
+          if (!spot) {
+            errors.push(`Edelmetalle: kein Preis für ${METAL_LABEL[m]}.`);
+            continue;
+          }
+          const price: MetalPrice = { eurPerGram: spotToEurPerGram(spot.usdPerOunce, rates.USD), updatedAt: spot.updatedAt ?? now, source: 'api' };
+          metalPrices[m] = price;
+          updated++;
+        }
+      } catch (e) {
+        errors.push(`Edelmetalle: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  if (stockBySymbol.size) {
     let first = true;
     for (const [symbol, h] of stockBySymbol) {
       if (!first && delay > 0) await sleep(delay); // Alpha Vantage free tier allows few calls per minute
@@ -190,5 +271,5 @@ export async function refreshQuotes(
     }
   }
 
-  return { quotes, errors, updated };
+  return { quotes, metalPrices, errors, updated };
 }

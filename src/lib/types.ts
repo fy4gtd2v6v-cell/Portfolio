@@ -60,6 +60,8 @@ export interface Holding {
 export interface MetalPrice {
   eurPerGram: number;
   updatedAt: string; // ISO
+  /** missing in older data, means 'manual' */
+  source?: 'api' | 'manual';
 }
 
 export interface Quote {
@@ -74,6 +76,8 @@ export interface Quote {
 export interface Settings {
   alphaVantageKey: string;
   coingeckoKey: string;
+  /** 'live': spot prices are fetched with the other quotes; 'manual': only prices typed in by hand */
+  metalMode: 'live' | 'manual';
 }
 
 export interface PortfolioState {
@@ -99,7 +103,7 @@ export function emptyState(): PortfolioState {
     metalPrices: {},
     quotes: {},
     history: [],
-    settings: { alphaVantageKey: '', coingeckoKey: '' },
+    settings: { alphaVantageKey: '', coingeckoKey: '', metalMode: 'live' },
   };
 }
 

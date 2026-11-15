@@ -93,7 +93,7 @@ export function valueHolding(h: Holding, state: PortfolioState): HoldingValuatio
     if (p) {
       out.unitPrice = p.eurPerGram;
       out.priceUpdatedAt = p.updatedAt;
-      out.priceSource = 'manual';
+      out.priceSource = p.source ?? 'manual';
     }
   } else {
     const key = quoteKey(h);

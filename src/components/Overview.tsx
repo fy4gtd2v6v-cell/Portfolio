@@ -67,7 +67,7 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
       {s.unpriced.length > 0 && (
         <div className="banner warn">
           Ohne aktuellen Kurs (nicht im Gesamtwert): {s.unpriced.map((h) => h.name).join(', ')}.{' '}
-          {s.unpriced.some((h) => h.assetClass === 'metal') && <button className="link" onClick={() => onGoto('metals')}>Edelmetallpreise eintragen</button>}
+          {s.unpriced.some((h) => h.assetClass === 'metal') && <button className="link" onClick={() => onGoto('metals')}>Edelmetallpreise öffnen</button>}
         </div>
       )}
 

@@ -111,7 +111,7 @@ function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioStat
     setMessage(null);
     try {
       const r = await refreshQuotes(state);
-      setState((s) => ({ ...s, quotes: { ...s.quotes, ...r.quotes } }));
+      setState((s) => ({ ...s, quotes: { ...s.quotes, ...r.quotes }, metalPrices: { ...s.metalPrices, ...r.metalPrices } }));
       const lines = [`${r.updated} Kurs${r.updated === 1 ? '' : 'e'} aktualisiert.`, ...r.errors];
       setMessage({ kind: r.errors.length ? 'error' : 'ok', lines });
     } finally {
@@ -119,7 +119,7 @@ function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioStat
     }
   }
 
-  const hasLive = state.holdings.some((h) => h.assetClass !== 'metal');
+  const hasLive = state.holdings.some((h) => h.assetClass !== 'metal' || state.settings.metalMode !== 'manual');
 
   return (
     <div className="app">
@@ -133,7 +133,7 @@ function Portfolio({ initial, initialVault, onLocked }: { initial: PortfolioStat
           ))}
         </nav>
         {vault && <button onClick={lock} title="Daten sperren, Passwort wird wieder verlangt">Sperren</button>}
-        <button className="primary" onClick={refresh} disabled={refreshing || !hasLive} title={hasLive ? '' : 'Keine Aktien oder Kryptowerte vorhanden'}>
+        <button className="primary" onClick={refresh} disabled={refreshing || !hasLive} title={hasLive ? '' : 'Keine Positionen mit Live-Kurs vorhanden'}>
           {refreshing ? 'Lädt Kurse …' : 'Kurse aktualisieren'}
         </button>
       </header>
