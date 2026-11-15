@@ -1,0 +1,194 @@
+import { Currency, CURRENCIES, Holding, PortfolioState, Quote, quoteKey } from './types';
+
+export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+export class PriceError extends Error {}
+
+const ALPHA_VANTAGE = 'https://www.alphavantage.co/query';
+const COINGECKO = 'https://api.coingecko.com/api/v3';
+const FRANKFURTER = 'https://api.frankfurter.dev/v1/latest';
+
+async function getJson(f: FetchFn, url: string, init?: RequestInit): Promise<any> {
+  let res: Response;
+  try {
+    res = await f(url, init);
+  } catch {
+    throw new PriceError('Keine Verbindung zum Kursdienst.');
+  }
+  if (res.status === 429) throw new PriceError('Zu viele Anfragen – bitte in einer Minute erneut versuchen.');
+  if (!res.ok) throw new PriceError(`Kursdienst antwortet mit HTTP ${res.status}.`);
+  return res.json();
+}
+
+// ---------- Crypto: CoinGecko ----------
+
+function coingeckoHeaders(apiKey?: string): RequestInit | undefined {
+  return apiKey ? { headers: { 'x-cg-demo-api-key': apiKey } } : undefined;
+}
+
+/** Returns EUR prices keyed by CoinGecko id. Ids without a price are missing from the result. */
+export async function fetchCryptoPrices(ids: string[], apiKey = '', f: FetchFn = fetch): Promise<Record<string, number>> {
+  if (ids.length === 0) return {};
+  const url = `${COINGECKO}/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=eur`;
+  const data = await getJson(f, url, coingeckoHeaders(apiKey));
+  const out: Record<string, number> = {};
+  for (const id of ids) {
+    const eur = data?.[id]?.eur;
+    if (typeof eur === 'number') out[id] = eur;
+  }
+  return out;
+}
+
+export interface CryptoMatch {
+  id: string;
+  name: string;
+  symbol: string;
+}
+
+export async function searchCrypto(query: string, apiKey = '', f: FetchFn = fetch): Promise<CryptoMatch[]> {
+  const data = await getJson(f, `${COINGECKO}/search?query=${encodeURIComponent(query)}`, coingeckoHeaders(apiKey));
+  return (data?.coins ?? []).slice(0, 10).map((c: any) => ({ id: c.id, name: c.name, symbol: String(c.symbol).toUpperCase() }));
+}
+
+// ---------- Stocks: Alpha Vantage ----------
+
+function alphaVantageError(data: any): string | undefined {
+  const msg = data?.Note ?? data?.Information ?? data?.['Error Message'];
+  if (!msg) return undefined;
+  if (/rate limit|frequency|25 requests|premium/i.test(msg)) {
+    return 'Tageslimit von Alpha Vantage erreicht (kostenlos: 25 Abfragen pro Tag).';
+  }
+  if (/api ?key/i.test(msg)) return 'Alpha-Vantage-API-Key fehlt oder ist ungültig.';
+  return String(msg);
+}
+
+export async function fetchStockPrice(symbol: string, apiKey: string, f: FetchFn = fetch): Promise<number> {
+  if (!apiKey) throw new PriceError('Bitte in den Einstellungen einen Alpha-Vantage-API-Key eintragen.');
+  const url = `${ALPHA_VANTAGE}?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`;
+  const data = await getJson(f, url);
+  const err = alphaVantageError(data);
+  if (err) throw new PriceError(err);
+  const price = parseFloat(data?.['Global Quote']?.['05. price']);
+  if (!Number.isFinite(price)) throw new PriceError(`Kein Kurs für „${symbol}“ gefunden.`);
+  return price;
+}
+
+export interface StockMatch {
+  symbol: string;
+  name: string;
+  region: string;
+  currency: string;
+}
+
+export async function searchStocks(query: string, apiKey: string, f: FetchFn = fetch): Promise<StockMatch[]> {
+  if (!apiKey) throw new PriceError('Bitte in den Einstellungen einen Alpha-Vantage-API-Key eintragen.');
+  const url = `${ALPHA_VANTAGE}?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(query)}&apikey=${encodeURIComponent(apiKey)}`;
+  const data = await getJson(f, url);
+  const err = alphaVantageError(data);
+  if (err) throw new PriceError(err);
+  return (data?.bestMatches ?? []).map((m: any) => ({
+    symbol: m['1. symbol'],
+    name: m['2. name'],
+    region: m['4. region'],
+    currency: m['8. currency'],
+  }));
+}
+
+// ---------- FX: Frankfurter (ECB rates, no key) ----------
+
+/** Returns how many EUR one unit of each currency is worth. */
+export async function fetchEurRates(currencies: Currency[], f: FetchFn = fetch): Promise<Partial<Record<Currency, number>>> {
+  const foreign = [...new Set(currencies)].filter((c) => c !== 'EUR');
+  const out: Partial<Record<Currency, number>> = { EUR: 1 };
+  if (foreign.length === 0) return out;
+  const data = await getJson(f, `${FRANKFURTER}?from=EUR&to=${foreign.join(',')}`);
+  for (const c of foreign) {
+    const perEur = data?.rates?.[c];
+    if (typeof perEur === 'number' && perEur > 0) out[c] = 1 / perEur;
+  }
+  return out;
+}
+
+export function isCurrency(c: string): c is Currency {
+  return (CURRENCIES as string[]).includes(c);
+}
+
+// ---------- Refresh everything ----------
+
+export interface RefreshResult {
+  quotes: Record<string, Quote>;
+  errors: string[];
+  updated: number;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Fetches live prices for all stock and crypto holdings.
+ * Manual quotes are left untouched unless the API delivers a fresh price.
+ */
+export async function refreshQuotes(
+  state: PortfolioState,
+  opts: { f?: FetchFn; stockDelayMs?: number; now?: () => Date } = {},
+): Promise<RefreshResult> {
+  const f = opts.f ?? fetch;
+  const delay = opts.stockDelayMs ?? 1200;
+  const now = (opts.now ?? (() => new Date()))().toISOString();
+  const quotes = { ...state.quotes };
+  const errors: string[] = [];
+  let updated = 0;
+
+  const uniq = <T,>(xs: T[]) => [...new Set(xs)];
+  const crypto = uniq(state.holdings.filter((h) => h.assetClass === 'crypto' && h.coinId).map((h) => h.coinId!));
+  const stocks = state.holdings.filter((h): h is Holding & { symbol: string } => h.assetClass === 'stock' && !!h.symbol);
+  const stockBySymbol = new Map(stocks.map((h) => [h.symbol.toUpperCase(), h]));
+
+  if (crypto.length) {
+    try {
+      const prices = await fetchCryptoPrices(crypto, state.settings.coingeckoKey, f);
+      for (const id of crypto) {
+        if (prices[id] === undefined) {
+          errors.push(`Krypto: kein Kurs für „${id}“.`);
+          continue;
+        }
+        quotes[quoteKey({ assetClass: 'crypto', coinId: id })!] = {
+          eurPrice: prices[id], price: prices[id], currency: 'EUR', source: 'api', updatedAt: now,
+        };
+        updated++;
+      }
+    } catch (e) {
+      errors.push(`Krypto: ${(e as Error).message}`);
+    }
+  }
+
+  if (stockBySymbol.size) {
+    let rates: Partial<Record<Currency, number>> = { EUR: 1 };
+    try {
+      rates = await fetchEurRates(stocks.map((h) => h.currency ?? 'EUR'), f);
+    } catch (e) {
+      errors.push(`Wechselkurse: ${(e as Error).message}`);
+    }
+    let first = true;
+    for (const [symbol, h] of stockBySymbol) {
+      if (!first && delay > 0) await sleep(delay); // Alpha Vantage free tier allows few calls per minute
+      first = false;
+      const currency = h.currency ?? 'EUR';
+      const rate = rates[currency];
+      if (rate === undefined) {
+        errors.push(`${symbol}: kein Wechselkurs ${currency}→EUR.`);
+        continue;
+      }
+      try {
+        const price = await fetchStockPrice(symbol, state.settings.alphaVantageKey, f);
+        quotes[quoteKey(h)!] = { eurPrice: price * rate, price, currency, source: 'api', updatedAt: now };
+        updated++;
+      } catch (e) {
+        errors.push(`${symbol}: ${(e as Error).message}`);
+        // A missing key or exhausted quota affects every following symbol too.
+        if (/API-Key|Tageslimit/.test((e as Error).message)) break;
+      }
+    }
+  }
+
+  return { quotes, errors, updated };
+}
