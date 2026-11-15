@@ -16,7 +16,9 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   (wie bei Wertpapieren steuerlich vorgeschrieben); Verkäufe über den Bestand werden abgelehnt.
 - **Wertverlauf**: Jeden Tag, an dem die App geöffnet wird, speichert sie den Gesamtwert
   (nur wenn alle Positionen einen Kurs haben) – Diagramm mit Zeitraum 1 M / 6 M / 1 J / Alles.
-- Gewinn/Verlust, Aufteilung nach Anlageklasse.
+- Gewinn/Verlust, Aufteilung nach Anlageklasse – die Klassen-Karten filtern die Positionstabelle,
+  die Spalten lassen sich sortieren, ein Klick auf eine Zeile öffnet die Position.
+- Neue Positionen werden über „Neue Position“ in einem eigenen Fenster angelegt.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).
 
 ## Sicherheit
