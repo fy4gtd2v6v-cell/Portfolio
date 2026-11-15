@@ -1,3 +1,4 @@
+import { encryptText, Envelope, parseEnvelope, Vault } from './crypto';
 import { emptyState, PortfolioState } from './types';
 
 const KEY = 'portfolio-tracker:v1';
@@ -18,25 +19,53 @@ export function parseState(json: string): PortfolioState {
   };
 }
 
-export function loadState(): PortfolioState {
+export type Stored =
+  | { kind: 'plain'; state: PortfolioState }
+  | { kind: 'encrypted'; envelope: Envelope };
+
+/** What is in the browser storage: readable data, or an encrypted envelope that needs the password. */
+export function readStored(): Stored {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? parseState(raw) : emptyState();
+    if (!raw) return { kind: 'plain', state: emptyState() };
+    const envelope = parseEnvelope(raw);
+    if (envelope) return { kind: 'encrypted', envelope };
+    return { kind: 'plain', state: parseState(raw) };
   } catch {
-    return emptyState();
+    return { kind: 'plain', state: emptyState() };
   }
 }
 
-export function saveState(state: PortfolioState): boolean {
+function write(value: string): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(KEY, value);
     return true;
   } catch {
     return false;
   }
 }
 
-/** Export without API keys, so the backup file can be shared safely. */
-export function exportState(state: PortfolioState): string {
-  return JSON.stringify({ ...state, settings: { alphaVantageKey: '', coingeckoKey: '' } }, null, 2);
+/** Saves the state; encrypted when a vault is given, otherwise as readable JSON. */
+export async function saveState(state: PortfolioState, vault: Vault | null): Promise<boolean> {
+  const json = JSON.stringify(state);
+  if (!vault) return write(json);
+  try {
+    return write(JSON.stringify(await encryptText(vault, json)));
+  } catch {
+    return false;
+  }
+}
+
+export function clearStored(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+/** Export without API keys. Encrypted with the vault when password protection is on. */
+export async function exportState(state: PortfolioState, vault: Vault | null): Promise<string> {
+  const json = JSON.stringify({ ...state, settings: { alphaVantageKey: '', coingeckoKey: '' } }, null, 2);
+  return vault ? JSON.stringify(await encryptText(vault, json), null, 2) : json;
 }
