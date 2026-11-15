@@ -18,6 +18,20 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 - Gewinn/Verlust, Aufteilung nach Anlageklasse.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).
 
+## Sicherheit
+
+- **Passwortschutz** (Einstellungen): Daten und API-Keys werden mit AES-256-GCM verschlüsselt im
+  Browser gespeichert; der Schlüssel wird per PBKDF2-SHA256 (600.000 Runden) aus dem Passwort
+  abgeleitet und existiert nur im Arbeitsspeicher. Die App sperrt sich nach 10 Minuten ohne
+  Eingabe, per „Sperren“-Knopf und beim Schließen des Tabs.
+- **Kein Zurücksetzen**: Ohne Passwort sind die Daten nicht wiederherstellbar.
+- **Verschlüsselter Export**: Mit aktivem Passwortschutz ist auch die Sicherungsdatei verschlüsselt.
+- **Content-Security-Policy**: Die gebaute Seite führt nur ihr eigenes (per Hash festgelegtes)
+  Skript aus und darf ausschließlich die drei Kursdienste kontaktieren.
+- Grenzen: Der Schutz gilt für gespeicherte Daten. Solange die App entsperrt ist, kann Schadsoftware
+  oder eine bösartige Browser-Erweiterung auf dem Rechner mitlesen. Der Alpha-Vantage-Key wird
+  (von der API so vorgegeben) als Teil der Adresse an alphavantage.co gesendet.
+
 ## Auf dem Mac starten
 
 ```bash

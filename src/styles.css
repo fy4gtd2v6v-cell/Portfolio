@@ -184,3 +184,12 @@ th { font-size: 13px; color: var(--text-2); font-weight: 500; }
 }
 .tooltip-date { color: var(--text-2); margin-bottom: 2px; }
 details summary { cursor: pointer; color: var(--accent); margin-top: 8px; }
+
+.lock { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.lock-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px; }
+.lock-card h1 { font-size: 20px; margin: 0; }
+.lock-card p { margin: 0 0 8px; }
+.lock-icon { font-size: 32px; }
+.badge { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: var(--track); color: var(--text-2); vertical-align: middle; margin-left: 6px; }
+.badge.ok { background: var(--ok-bg); color: var(--pos); }
+.card .banner { margin: 8px 0; display: block; }
