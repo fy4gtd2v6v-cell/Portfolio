@@ -38,24 +38,27 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
 
   return (
     <>
-      <section className="stats">
-        <div className="stat">
-          <div className="stat-label">Gesamtwert</div>
-          <div className="stat-value">{fmtEur(s.totalValue)}</div>
+      <section className="hero stats">
+        <div className="hero-main">
+          <div className="hero-label">Gesamtwert</div>
+          <div className="hero-value">{fmtEur(s.totalValue)}</div>
+          <div className={`chip ${gainClass}`} title="Gewinn / Verlust der offenen Positionen">
+            <span aria-hidden="true">{s.gain > 0 ? '▲' : s.gain < 0 ? '▼' : '•'}</span>
+            {fmtSignedEur(s.gain)}
+            {s.gainPct !== undefined && <span> · {fmtPct(s.gainPct)}</span>}
+          </div>
         </div>
-        <div className="stat">
-          <div className="stat-label">Gewinn / Verlust</div>
-          <div className={`stat-value ${gainClass}`}>{fmtSignedEur(s.gain)}</div>
-          {s.gainPct !== undefined && <div className={`stat-sub ${gainClass}`}>{fmtPct(s.gainPct)}</div>}
-        </div>
-        <div className="stat">
-          <div className="stat-label">Investiert</div>
-          <div className="stat-value">{fmtEur(s.totalCost)}</div>
-          {Math.abs(s.realized) > 0.005 && (
-            <div className="stat-sub">
-              Realisiert durch Verkäufe: <span className={s.realized > 0 ? 'pos' : 'neg'}>{fmtSignedEur(s.realized)}</span>
+        <div className="hero-side">
+          <div>
+            <div className="hero-label">Investiert</div>
+            <div className="hero-num">{fmtEur(s.totalCost)}</div>
+          </div>
+          <div>
+            <div className="hero-label">Realisiert</div>
+            <div className={`hero-num ${s.realized > 0.005 ? 'pos' : s.realized < -0.005 ? 'neg' : ''}`}>
+              {Math.abs(s.realized) > 0.005 ? fmtSignedEur(s.realized) : fmtEur(0)}
             </div>
-          )}
+          </div>
         </div>
       </section>
 
@@ -128,7 +131,7 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
                 return (
                   <tr key={h.id}>
                     <td>
-                      <div>{h.name}</div>
+                      <div className="pos-name"><span className="swatch" style={{ background: CLASS_COLOR[h.assetClass] }} />{h.name}</div>
                       <div className="muted small">
                         {CLASS_LABEL[h.assetClass]}
                         {h.symbol && ` · ${h.symbol}`}

@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import type { Update } from '../App';
 import {
-  createVault, cryptoAvailable, decryptText, Envelope, MIN_PASSWORD_LENGTH, openEnvelope, parseEnvelope, Vault,
+  changePassword, createVault, cryptoAvailable, decryptText, Envelope, MIN_PASSWORD_LENGTH, parseEnvelope, renewRecoveryCode,
+  unlockWithEither, Vault, verifyPassword,
 } from '../lib/crypto';
-import { exportState, parseState, readStored } from '../lib/storage';
+import { exportState, parseState } from '../lib/storage';
 import { emptyState, PortfolioState } from '../lib/types';
 
 interface Props {
@@ -12,12 +13,13 @@ interface Props {
   replace: (s: PortfolioState) => void;
   vault: Vault | null;
   setVault: (v: Vault | null) => void;
+  showRecoveryCode: (code: string) => void;
 }
 
-export function SettingsView({ state, update, replace, vault, setVault }: Props) {
+export function SettingsView({ state, update, replace, vault, setVault, showRecoveryCode }: Props) {
   return (
     <>
-      <Security vault={vault} setVault={setVault} />
+      <Security vault={vault} setVault={setVault} showRecoveryCode={showRecoveryCode} />
       <ApiKeys state={state} update={update} encrypted={!!vault} />
       <Backup state={state} replace={replace} vault={vault} />
     </>
@@ -26,25 +28,13 @@ export function SettingsView({ state, update, replace, vault, setVault }: Props)
 
 // ---------------- Password protection ----------------
 
-/** Checks a password against what is currently stored in the browser. */
-async function verifyStoredPassword(password: string): Promise<boolean> {
-  const stored = readStored();
-  if (stored.kind !== 'encrypted') return false;
-  try {
-    await openEnvelope(password, stored.envelope);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function newPasswordError(pw: string, repeat: string): string {
   if (pw.length < MIN_PASSWORD_LENGTH) return `Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`;
   if (pw !== repeat) return 'Die beiden Passwörter stimmen nicht überein.';
   return '';
 }
 
-function Security({ vault, setVault }: { vault: Vault | null; setVault: (v: Vault | null) => void }) {
+function Security({ vault, setVault, showRecoveryCode }: Pick<Props, 'vault' | 'setVault' | 'showRecoveryCode'>) {
   const [current, setCurrent] = useState('');
   const [pw, setPw] = useState('');
   const [repeat, setRepeat] = useState('');
@@ -74,7 +64,9 @@ function Security({ vault, setVault }: { vault: Vault | null; setVault: (v: Vaul
     const err = newPasswordError(pw, repeat);
     if (err) return fail(err);
     run(async () => {
-      setVault(await createVault(pw));
+      const created = await createVault(pw);
+      setVault(created.vault);
+      showRecoveryCode(created.recoveryCode);
       done('Passwortschutz ist aktiv. Deine Daten werden ab jetzt verschlüsselt gespeichert.');
     });
   };
@@ -84,18 +76,27 @@ function Security({ vault, setVault }: { vault: Vault | null; setVault: (v: Vaul
     const err = newPasswordError(pw, repeat);
     if (err) return fail(err);
     run(async () => {
-      if (!(await verifyStoredPassword(current))) return fail('Das aktuelle Passwort ist falsch.');
-      setVault(await createVault(pw));
-      done('Passwort geändert.');
+      if (!vault || !(await verifyPassword(current, vault))) return fail('Das aktuelle Passwort ist falsch.');
+      setVault(await changePassword(vault, pw));
+      done('Passwort geändert. Dein Wiederherstellungsschlüssel bleibt gültig.');
     });
   };
 
   const disable = () =>
     run(async () => {
-      if (!(await verifyStoredPassword(current))) return fail('Das aktuelle Passwort ist falsch.');
+      if (!vault || !(await verifyPassword(current, vault))) return fail('Das aktuelle Passwort ist falsch.');
       if (!confirm('Passwortschutz entfernen? Die Daten liegen danach wieder unverschlüsselt im Browser.')) return;
       setVault(null);
       done('Passwortschutz entfernt.');
+    });
+
+  const renew = () =>
+    run(async () => {
+      if (!vault || !(await verifyPassword(current, vault))) return fail('Das aktuelle Passwort ist falsch.');
+      const renewed = await renewRecoveryCode(vault);
+      setVault(renewed.vault);
+      showRecoveryCode(renewed.recoveryCode);
+      done('Neuer Wiederherstellungsschlüssel erstellt. Der alte ist ab sofort ungültig.');
     });
 
   if (!cryptoAvailable()) {
@@ -133,8 +134,10 @@ function Security({ vault, setVault }: { vault: Vault | null; setVault: (v: Vaul
             </div>
             <div className="inline">
               <button type="submit" disabled={busy || !current}>Passwort ändern</button>
+              <button type="button" disabled={busy || !current} onClick={renew}>Neuen Wiederherstellungsschlüssel erstellen</button>
               <button type="button" className="danger" disabled={busy || !current} onClick={disable}>Passwortschutz entfernen</button>
             </div>
+            <p className="small muted">Für alle drei Aktionen brauchst du dein aktuelles Passwort.</p>
           </form>
         </>
       ) : (
@@ -144,8 +147,8 @@ function Security({ vault, setVault }: { vault: Vault | null; setVault: (v: Vaul
             diesen Rechner könnte sie lesen. Mit Passwort werden sie verschlüsselt, und die App verlangt es bei jedem Öffnen.
           </p>
           <div className="banner warn">
-            <strong>Wichtig:</strong> Es gibt keine „Passwort vergessen“-Funktion. Ohne Passwort sind die Daten verloren –
-            am besten im Passwortmanager speichern.
+            <strong>Wichtig:</strong> Nach dem Aktivieren bekommst du einen Wiederherstellungsschlüssel. Damit kannst du ein neues
+            Passwort setzen, falls du deines vergisst. Ohne Passwort <em>und</em> ohne Schlüssel sind die Daten verloren.
           </div>
           <div className="grid">
             <label className="field">
@@ -223,7 +226,7 @@ function Backup({ state, replace, vault }: { state: PortfolioState; replace: (s:
       const env = parseEnvelope(text);
       if (!env) return finishImport(text);
       // A backup made with the current password opens without asking again.
-      if (vault && env.salt === vault.salt) {
+      if (vault && env.v === 2 && env.pw.salt === vault.pw.salt) {
         try {
           return finishImport(await decryptText(vault, env));
         } catch {
@@ -242,7 +245,7 @@ function Backup({ state, replace, vault }: { state: PortfolioState; replace: (s:
     setBusy(true);
     setMsg('');
     try {
-      finishImport((await openEnvelope(importPw, pending)).text);
+      finishImport((await unlockWithEither(importPw, pending)).text);
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
@@ -275,7 +278,7 @@ function Backup({ state, replace, vault }: { state: PortfolioState; replace: (s:
         <form onSubmit={decryptPending}>
           <h3>Verschlüsselte Sicherung</h3>
           <div className="inline">
-            <input type="password" autoComplete="off" placeholder="Passwort der Sicherung" aria-label="Passwort der Sicherung" value={importPw} onChange={(e) => setImportPw(e.target.value)} />
+            <input type="password" autoComplete="off" placeholder="Passwort oder Wiederherstellungsschlüssel" aria-label="Passwort der Sicherung" value={importPw} onChange={(e) => setImportPw(e.target.value)} />
             <button type="submit" disabled={busy || !importPw}>{busy ? 'Entschlüsselt …' : 'Entschlüsseln & importieren'}</button>
             <button type="button" onClick={() => { setPending(null); setImportPw(''); }}>Abbrechen</button>
           </div>
