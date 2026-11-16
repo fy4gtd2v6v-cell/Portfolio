@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ClassIcon, CLASS_COLOR, Icon } from './ui';
 import type { Update } from '../App';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
@@ -10,18 +11,47 @@ import { toGrams, WeightUnit } from '../lib/units';
 
 const FINENESS_PRESETS = [999.9, 999, 916.7, 900, 835, 750, 585];
 
-export function HoldingsView({ state, update }: { state: PortfolioState; update: Update }) {
-  const [adding, setAdding] = useState(state.holdings.length === 0);
+type Filter = AssetClass | 'all';
+
+export function HoldingsView({ state, update, onAdd, focusId }: { state: PortfolioState; update: Update; onAdd: () => void; focusId?: string }) {
+  const [filter, setFilter] = useState<Filter>('all');
+  const classes = (['metal', 'stock', 'crypto'] as AssetClass[]).filter((c) => state.holdings.some((h) => h.assetClass === c));
+  // A position opened from the overview must be visible, so jumping to one clears the filter.
+  useEffect(() => {
+    if (focusId) setFilter('all');
+  }, [focusId]);
+  const active: Filter = filter !== 'all' && !classes.includes(filter) ? 'all' : filter;
+  const shown = state.holdings.filter((h) => active === 'all' || h.assetClass === active);
 
   return (
     <>
-      {adding ? (
-        <AddHolding state={state} update={update} onDone={() => setAdding(false)} />
-      ) : (
-        <button className="primary add-position" onClick={() => setAdding(true)}>+ Neue Position</button>
-      )}
-      {state.holdings.map((h) => (
-        <HoldingCard key={h.id} holding={h} state={state} update={update} />
+      <section className="card section-head">
+        <div>
+          <h2>Positionen</h2>
+          <p className="muted small">
+            {state.holdings.length === 0
+              ? 'Noch keine Positionen angelegt.'
+              : `${state.holdings.length} Position${state.holdings.length === 1 ? '' : 'en'} · zum Bearbeiten anklicken`}
+          </p>
+        </div>
+        <button className="primary with-icon" onClick={onAdd}><Icon.plus />Neue Position</button>
+        {classes.length > 1 && (
+          <div className="chips" role="radiogroup" aria-label="Nach Anlageklasse filtern">
+            <button type="button" role="radio" aria-checked={active === 'all'} className={`filter-chip ${active === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+              Alle <span className="count">{state.holdings.length}</span>
+            </button>
+            {classes.map((c) => (
+              <button type="button" key={c} role="radio" aria-checked={active === c} className={`filter-chip ${active === c ? 'active' : ''}`}
+                style={{ '--c': CLASS_COLOR[c] } as React.CSSProperties} onClick={() => setFilter(c)}>
+                <span className="swatch" style={{ background: CLASS_COLOR[c] }} />
+                {CLASS_LABEL[c]} <span className="count">{state.holdings.filter((h) => h.assetClass === c).length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+      {shown.map((h) => (
+        <HoldingCard key={h.id} holding={h} state={state} update={update} focused={h.id === focusId} />
       ))}
     </>
   );
@@ -72,7 +102,8 @@ function toPurchase(d: PurchaseDraft, isMetal: boolean): Purchase | string {
 
 // ---------------- Add holding ----------------
 
-function AddHolding({ state, update, onDone }: { state: PortfolioState; update: Update; onDone: () => void }) {
+/** The form for a new position. `onDone` receives the id of the created holding, or nothing on cancel. */
+export function AddHolding({ state, update, onDone }: { state: PortfolioState; update: Update; onDone: (createdId?: string) => void }) {
   const [cls, setCls] = useState<AssetClass>('metal');
   const [name, setName] = useState('');
   const [metal, setMetal] = useState<Metal>('gold');
@@ -105,15 +136,16 @@ function AddHolding({ state, update, onDone }: { state: PortfolioState; update: 
       h.name ||= h.coinId;
     }
     update((s) => ({ ...s, holdings: [...s.holdings, h] }));
-    onDone();
+    onDone(h.id);
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <h2>Neue Position</h2>
-      <div className="segmented" role="radiogroup" aria-label="Anlageklasse">
+    <form onSubmit={submit}>
+      <div className="class-picker" role="radiogroup" aria-label="Anlageklasse">
         {(['metal', 'stock', 'crypto'] as AssetClass[]).map((c) => (
-          <button type="button" key={c} role="radio" aria-checked={cls === c} className={cls === c ? 'active' : ''} onClick={() => { setCls(c); setError(''); }}>
+          <button type="button" key={c} role="radio" aria-checked={cls === c} className={cls === c ? 'active' : ''}
+            style={{ '--c': CLASS_COLOR[c] } as React.CSSProperties} onClick={() => { setCls(c); setError(''); }}>
+            <ClassIcon assetClass={c} large />
             {CLASS_LABEL[c]}
           </button>
         ))}
@@ -184,7 +216,7 @@ function AddHolding({ state, update, onDone }: { state: PortfolioState; update: 
       {error && <div className="field-error">{error}</div>}
       <div className="inline">
         <button type="submit" className="primary">Position anlegen</button>
-        <button type="button" onClick={onDone}>Abbrechen</button>
+        <button type="button" onClick={() => onDone()}>Abbrechen</button>
       </div>
     </form>
   );
@@ -266,8 +298,15 @@ function CryptoPicker({ apiKey, onPick, children }: { apiKey: string; onPick: (m
 
 // ---------------- Existing holding ----------------
 
-function HoldingCard({ holding: h, state, update }: { holding: Holding; state: PortfolioState; update: Update }) {
-  const [open, setOpen] = useState(false);
+function HoldingCard({ holding: h, state, update, focused }: { holding: Holding; state: PortfolioState; update: Update; focused?: boolean }) {
+  const [open, setOpen] = useState(!!focused);
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focused) {
+      setOpen(true);
+      ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [focused]);
   const [draft, setDraft] = useState(emptyDraft);
   const [error, setError] = useState('');
   const [manual, setManual] = useState('');
@@ -300,8 +339,9 @@ function HoldingCard({ holding: h, state, update }: { holding: Holding; state: P
   }
 
   return (
-    <section className="card">
+    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CLASS_COLOR[h.assetClass] } as React.CSSProperties}>
       <div className="holding-head">
+        <ClassIcon assetClass={h.assetClass} />
         <button className="link holding-title" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? '▾' : '▸'} {h.name}
         </button>

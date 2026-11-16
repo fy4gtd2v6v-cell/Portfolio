@@ -1,47 +1,82 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { HistoryChart } from './HistoryChart';
-import { summarize, valueHolding } from '../lib/portfolio';
+import { ClassIcon, CLASS_COLOR, Icon, useCountUp } from './ui';
+import { HoldingValuation, summarize, valueHolding } from '../lib/portfolio';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
-import { AssetClass, CLASS_LABEL, METAL_LABEL, PortfolioState } from '../lib/types';
+import { AssetClass, CLASS_LABEL, Holding, METAL_LABEL, PortfolioState } from '../lib/types';
 import { fromGrams } from '../lib/units';
 
-const CLASS_COLOR: Record<AssetClass, string> = {
-  metal: 'var(--series-1)',
-  stock: 'var(--series-2)',
-  crypto: 'var(--series-3)',
-};
+type SortKey = 'name' | 'value' | 'cost' | 'gain';
+const share = new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 });
 
-export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t: 'holdings' | 'metals') => void }) {
+interface Props {
+  state: PortfolioState;
+  onGoto: (t: 'holdings' | 'metals') => void;
+  onAdd: () => void;
+  onOpenHolding: (id: string) => void;
+}
+
+export function Overview({ state, onGoto, onAdd, onOpenHolding }: Props) {
   const s = summarize(state);
+  const [filter, setFilter] = useState<AssetClass | null>(null);
   const [hover, setHover] = useState<AssetClass | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'value', dir: -1 });
+  const total = useCountUp(s.totalValue);
+
+  const valued = useMemo(
+    () => state.holdings.map((h) => ({ h, v: valueHolding(h, state) })),
+    [state],
+  );
 
   if (state.holdings.length === 0) {
     return (
       <section className="card empty">
+        <div className="empty-icons" aria-hidden="true">
+          <ClassIcon assetClass="metal" large /><ClassIcon assetClass="stock" large /><ClassIcon assetClass="crypto" large />
+        </div>
         <h2>Noch keine Positionen</h2>
         <p>Lege deine erste Position an – z. B. einen Goldbarren in Gramm, eine Aktie oder Bitcoin.</p>
-        <button className="primary" onClick={() => onGoto('holdings')}>Position hinzufügen</button>
+        <button className="primary with-icon" onClick={onAdd}><Icon.plus />Position hinzufügen</button>
       </section>
     );
   }
 
   const gainClass = s.gain > 0 ? 'pos' : s.gain < 0 ? 'neg' : '';
-  const max = Math.max(...s.byClass.map((c) => c.value), 1);
-  const open = state.holdings.filter((h) => !valueHolding(h, state).closed);
-  const closed = state.holdings.filter((h) => valueHolding(h, state).closed);
-  const metals = open.filter((h) => h.assetClass === 'metal');
+  const open = valued.filter((x) => !x.v.closed);
+  const closed = valued.filter((x) => x.v.closed);
+  const activeFilter = filter && s.byClass.some((c) => c.assetClass === filter) ? filter : null;
+  const emphasis = hover ?? activeFilter;
+
   const gramsByMetal = new Map<string, number>();
-  for (const h of metals) {
-    const v = valueHolding(h, state);
-    gramsByMetal.set(h.metal!, (gramsByMetal.get(h.metal!) ?? 0) + (v.fineGrams ?? 0));
+  for (const { h, v } of open) {
+    if (h.assetClass === 'metal') gramsByMetal.set(h.metal!, (gramsByMetal.get(h.metal!) ?? 0) + (v.fineGrams ?? 0));
   }
+
+  const sortValue = (x: { h: Holding; v: HoldingValuation }): number | string =>
+    sort.key === 'name' ? x.h.name.toLocaleLowerCase('de') : sort.key === 'value' ? x.v.value ?? -Infinity : sort.key === 'cost' ? x.v.cost : x.v.gain ?? -Infinity;
+  const rows = open
+    .filter((x) => !activeFilter || x.h.assetClass === activeFilter)
+    .sort((a, b) => {
+      const [x, y] = [sortValue(a), sortValue(b)];
+      return (typeof x === 'string' ? x.localeCompare(y as string, 'de') : x - (y as number)) * sort.dir;
+    });
+
+  const toggleSort = (key: SortKey) =>
+    setSort((cur) => (cur.key === key ? { key, dir: cur.dir === 1 ? -1 : 1 } : { key, dir: key === 'name' ? 1 : -1 }));
+  const sortHead = (k: SortKey, label: string, num?: boolean) => (
+    <th className={num ? 'num' : ''} aria-sort={sort.key === k ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className={`sort ${sort.key === k ? 'active' : ''}`} onClick={() => toggleSort(k)} title="Sortieren">
+        {label}<span aria-hidden="true">{sort.key === k ? (sort.dir === 1 ? ' ↑' : ' ↓') : ' ↕'}</span>
+      </button>
+    </th>
+  );
 
   return (
     <>
       <section className="hero stats">
         <div className="hero-main">
           <div className="hero-label">Gesamtwert</div>
-          <div className="hero-value">{fmtEur(s.totalValue)}</div>
+          <div className="hero-value" aria-label={fmtEur(s.totalValue)}>{fmtEur(total)}</div>
           <div className={`chip ${gainClass}`} title="Gewinn / Verlust der offenen Positionen">
             <span aria-hidden="true">{s.gain > 0 ? '▲' : s.gain < 0 ? '▼' : '•'}</span>
             {fmtSignedEur(s.gain)}
@@ -60,11 +95,14 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
             </div>
           </div>
         </div>
-      </section>
-
-      <section className="card">
-        <h2>Wertverlauf</h2>
-        <HistoryChart history={state.history} />
+        {s.totalValue > 0 && (
+          <div className="hero-split" role="img" aria-label={s.byClass.map((c) => `${CLASS_LABEL[c.assetClass]} ${share.format(c.value / s.totalValue)}`).join(', ')}>
+            {s.byClass.filter((c) => c.value > 0).map((c) => (
+              <span key={c.assetClass} className={emphasis && emphasis !== c.assetClass ? 'dim' : ''}
+                style={{ flexGrow: c.value, background: CLASS_COLOR[c.assetClass] }} />
+            ))}
+          </div>
+        )}
       </section>
 
       {s.unpriced.length > 0 && (
@@ -74,68 +112,91 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
         </div>
       )}
 
+      <section className="class-cards" aria-label="Aufteilung nach Anlageklasse">
+        {s.byClass.map((c) => {
+          const part = s.totalValue > 0 ? c.value / s.totalValue : 0;
+          const gain = c.value - c.cost;
+          const selected = activeFilter === c.assetClass;
+          return (
+            <button
+              type="button"
+              key={c.assetClass}
+              className={`class-card ${selected ? 'active' : ''} ${emphasis && emphasis !== c.assetClass ? 'dim' : ''}`}
+              style={{ '--c': CLASS_COLOR[c.assetClass] } as React.CSSProperties}
+              aria-pressed={selected}
+              title={selected ? 'Filter aufheben' : `Nur ${CLASS_LABEL[c.assetClass]} anzeigen`}
+              onClick={() => setFilter(selected ? null : c.assetClass)}
+              onMouseEnter={() => setHover(c.assetClass)}
+              onMouseLeave={() => setHover(null)}
+            >
+              <span className="class-card-head">
+                <ClassIcon assetClass={c.assetClass} large />
+                <span>
+                  <span className="class-card-name">{CLASS_LABEL[c.assetClass]}</span>
+                  <span className="muted small">{c.count} Position{c.count === 1 ? '' : 'en'}</span>
+                </span>
+                <span className="class-card-share">{share.format(part)}</span>
+              </span>
+              <span className="class-card-value">{fmtEur(c.value)}</span>
+              <span className="bar-track"><span className="bar-fill" style={{ width: `${part * 100}%`, background: CLASS_COLOR[c.assetClass] }} /></span>
+              <span className={`small ${gain > 0 ? 'pos' : gain < 0 ? 'neg' : 'muted'}`}>
+                {fmtSignedEur(gain)}{c.cost > 0 && ` · ${fmtPct(gain / c.cost)}`}
+              </span>
+            </button>
+          );
+        })}
+      </section>
+      {gramsByMetal.size > 0 && (
+        <p className="muted small fine-weight">
+          Feingewicht gesamt:{' '}
+          {[...gramsByMetal].map(([m, g]) => `${METAL_LABEL[m as keyof typeof METAL_LABEL]} ${fmtNum(g, 2)} g (${fmtNum(fromGrams(g, 'oz'), 3)} oz)`).join(' · ')}
+        </p>
+      )}
+
       <section className="card">
-        <h2>Aufteilung nach Anlageklasse</h2>
-        <div className="bars" role="list">
-          {s.byClass.map((c) => {
-            const share = s.totalValue > 0 ? c.value / s.totalValue : 0;
-            return (
-              <div
-                key={c.assetClass}
-                className={`bar-row ${hover && hover !== c.assetClass ? 'dim' : ''}`}
-                role="listitem"
-                onMouseEnter={() => setHover(c.assetClass)}
-                onMouseLeave={() => setHover(null)}
-                title={`${CLASS_LABEL[c.assetClass]}: ${fmtEur(c.value)} (${fmtPct(share).replace('+', '')}), ${c.count} Position(en)`}
-              >
-                <div className="bar-label">
-                  <span className="swatch" style={{ background: CLASS_COLOR[c.assetClass] }} />
-                  {CLASS_LABEL[c.assetClass]}
-                </div>
-                <div className="bar-track">
-                  <div className="bar-fill" style={{ width: `${(c.value / max) * 100}%`, background: CLASS_COLOR[c.assetClass] }} />
-                </div>
-                <div className="bar-value">
-                  {fmtEur(c.value)} <span className="muted">· {new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 }).format(share)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {gramsByMetal.size > 0 && (
-          <p className="muted small">
-            Feingewicht gesamt:{' '}
-            {[...gramsByMetal].map(([m, g]) => `${METAL_LABEL[m as keyof typeof METAL_LABEL]} ${fmtNum(g, 2)} g (${fmtNum(fromGrams(g, 'oz'), 3)} oz)`).join(' · ')}
-          </p>
-        )}
+        <h2>Wertverlauf</h2>
+        <HistoryChart history={state.history} />
       </section>
 
       <section className="card">
-        <h2>Alle Positionen</h2>
+        <div className="card-head">
+          <h2>{activeFilter ? CLASS_LABEL[activeFilter] : 'Alle Positionen'}</h2>
+          {activeFilter && <button type="button" className="filter-chip active" onClick={() => setFilter(null)}>Filter aufheben ✕</button>}
+        </div>
         <div className="table-wrap">
-          <table>
+          <table className="positions">
             <thead>
               <tr>
-                <th>Position</th>
+                {sortHead('name', 'Position')}
                 <th className="num">Bestand</th>
                 <th className="num">Kurs</th>
-                <th className="num">Wert</th>
-                <th className="num">Investiert</th>
-                <th className="num">G/V</th>
+                {sortHead('value', 'Wert', true)}
+                {sortHead('cost', 'Investiert', true)}
+                {sortHead('gain', 'G/V', true)}
               </tr>
             </thead>
             <tbody>
-              {open.map((h) => {
-                const v = valueHolding(h, state);
+              {rows.map(({ h, v }) => {
                 const cls = v.gain === undefined ? '' : v.gain > 0 ? 'pos' : v.gain < 0 ? 'neg' : '';
                 return (
-                  <tr key={h.id}>
+                  <tr
+                    key={h.id}
+                    className="clickable"
+                    tabIndex={0}
+                    title="Position öffnen"
+                    onClick={() => onOpenHolding(h.id)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpenHolding(h.id))}
+                  >
                     <td>
-                      <div className="pos-name"><span className="swatch" style={{ background: CLASS_COLOR[h.assetClass] }} />{h.name}</div>
-                      <div className="muted small">
-                        {CLASS_LABEL[h.assetClass]}
-                        {h.symbol && ` · ${h.symbol}`}
-                        {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+                      <div className="pos-name"><ClassIcon assetClass={h.assetClass} />
+                        <div>
+                          {h.name}
+                          <div className="muted small pos-sub">
+                            {CLASS_LABEL[h.assetClass]}
+                            {h.symbol && ` · ${h.symbol}`}
+                            {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="num">
@@ -156,11 +217,11 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
                         </>
                       ) : '–'}
                     </td>
-                    <td className="num">{v.value !== undefined ? fmtEur(v.value) : '–'}</td>
+                    <td className="num strong">{v.value !== undefined ? fmtEur(v.value) : '–'}</td>
                     <td className="num">{fmtEur(v.cost)}</td>
-                    <td className={`num ${cls}`}>
-                      {v.gain !== undefined ? fmtSignedEur(v.gain) : '–'}
-                      {v.gainPct !== undefined && <div className="small">{fmtPct(v.gainPct)}</div>}
+                    <td className="num">
+                      {v.gain !== undefined ? <span className={`pill ${cls}`}>{fmtSignedEur(v.gain)}</span> : '–'}
+                      {v.gainPct !== undefined && <div className={`small ${cls}`}>{fmtPct(v.gainPct)}</div>}
                     </td>
                   </tr>
                 );
@@ -170,11 +231,7 @@ export function Overview({ state, onGoto }: { state: PortfolioState; onGoto: (t:
         </div>
         {closed.length > 0 && (
           <p className="muted small">
-            Vollständig verkauft:{' '}
-            {closed.map((h) => {
-              const r = valueHolding(h, state).realized;
-              return `${h.name} (${fmtSignedEur(r)})`;
-            }).join(' · ')}
+            Vollständig verkauft: {closed.map(({ h, v }) => `${h.name} (${fmtSignedEur(v.realized)})`).join(' · ')}
           </p>
         )}
       </section>

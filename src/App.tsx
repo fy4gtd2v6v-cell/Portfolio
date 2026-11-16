@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Overview } from './components/Overview';
-import { HoldingsView } from './components/Holdings';
+import { AddHolding, HoldingsView } from './components/Holdings';
 import { LockScreen } from './components/LockScreen';
 import { Logo } from './components/Logo';
 import { RecoveryCodeNotice } from './components/RecoveryCode';
+import { Dialog, Icon } from './components/ui';
 import { MetalPrices } from './components/MetalPrices';
 import { SettingsView } from './components/Settings';
 import { Envelope, Vault } from './lib/crypto';
@@ -14,11 +15,11 @@ import { clearStored, readStored, saveState } from './lib/storage';
 import { emptyState, PortfolioState } from './lib/types';
 
 type Tab = 'overview' | 'holdings' | 'metals' | 'settings';
-const TABS: [Tab, string][] = [
-  ['overview', 'Übersicht'],
-  ['holdings', 'Positionen'],
-  ['metals', 'Edelmetallpreise'],
-  ['settings', 'Einstellungen'],
+const TABS: [Tab, string, () => JSX.Element][] = [
+  ['overview', 'Übersicht', Icon.overview],
+  ['holdings', 'Positionen', Icon.holdings],
+  ['metals', 'Edelmetallpreise', Icon.metals],
+  ['settings', 'Einstellungen', Icon.settings],
 ];
 
 /** Lock automatically after this much time without interaction. */
@@ -78,6 +79,13 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
   const [vault, setVault] = useState<Vault | null>(initialVault);
   const [recoveryCode, setRecoveryCode] = useState<string | undefined>(initialRecoveryCode);
   const [tab, setTab] = useState<Tab>('overview');
+  const [adding, setAdding] = useState(false);
+  const [focusId, setFocusId] = useState<string | undefined>();
+  const closeAdd = useCallback(() => setAdding(false), []);
+  const openHolding = (id: string) => {
+    setFocusId(id);
+    setTab('holdings');
+  };
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; lines: string[] } | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -135,15 +143,16 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       <header className="topbar">
         <div className="brand"><Logo /><h1>Portfolio</h1></div>
         <nav className="tabs" aria-label="Bereiche">
-          {TABS.map(([id, label]) => (
-            <button key={id} className={tab === id ? 'tab active' : 'tab'} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
-              {label}
+          {TABS.map(([id, label, TabIcon]) => (
+            <button key={id} className={tab === id ? 'tab active' : 'tab'} aria-current={tab === id ? 'page' : undefined}
+              onClick={() => { setTab(id); setFocusId(undefined); }}>
+              <TabIcon /><span>{label}</span>
             </button>
           ))}
         </nav>
-        {vault && <button onClick={lock} title="Daten sperren, Passwort wird wieder verlangt">Sperren</button>}
-        <button className="primary" onClick={refresh} disabled={refreshing || !hasLive} title={hasLive ? '' : 'Keine Positionen mit Live-Kurs vorhanden'}>
-          {refreshing ? 'Lädt Kurse …' : 'Kurse aktualisieren'}
+        {vault && <button className="with-icon" onClick={lock} title="Daten sperren, Passwort wird wieder verlangt"><Icon.lock />Sperren</button>}
+        <button className={`primary with-icon ${refreshing ? 'spinning' : ''}`} onClick={refresh} disabled={refreshing || !hasLive} title={hasLive ? '' : 'Keine Positionen mit Live-Kurs vorhanden'}>
+          <Icon.refresh />{refreshing ? 'Lädt Kurse …' : 'Kurse aktualisieren'}
         </button>
       </header>
 
@@ -157,9 +166,18 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
 
       {recoveryCode && <RecoveryCodeNotice code={recoveryCode} onDone={() => setRecoveryCode(undefined)} />}
 
+      {adding && (
+        <Dialog title="Neue Position" onClose={closeAdd}>
+          <AddHolding state={state} update={update} onDone={(id) => {
+            setAdding(false);
+            if (id) openHolding(id);
+          }} />
+        </Dialog>
+      )}
+
       <main>
-        {tab === 'overview' && <Overview state={state} onGoto={setTab} />}
-        {tab === 'holdings' && <HoldingsView state={state} update={update} />}
+        {tab === 'overview' && <Overview state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding} />}
+        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} focusId={focusId} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
       </main>
