@@ -4,6 +4,10 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 
 ## Funktionen
 
+- **Startseite „Vermögen“**: Gesamtvermögen, Stückelung als Kreisdiagramm (nach Anlageklassen oder
+  einzelnen Positionen) und Vermögensverlauf mit umschaltbarem Zeitraum (1 W, 1 M, 3 M, 6 M,
+  seit Jahresbeginn, 1 J, Max).
+
 - **Edelmetalle in Gramm**: Gold, Silber, Platin, Palladium. Gewicht in g, kg oder Feinunzen eingeben,
   mit Feingehalt in ‰ (z. B. 999,9 oder 916,7 für Krügerrand) – bewertet wird nach Feingewicht.
   Preise kommen wahlweise **live** als Börsenpreis (Spot, über [gold-api.com](https://gold-api.com),
@@ -15,7 +19,7 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 - Käufe **und Verkäufe** pro Position. Einstand und realisierter Gewinn nach **FIFO**
   (wie bei Wertpapieren steuerlich vorgeschrieben); Verkäufe über den Bestand werden abgelehnt.
 - **Wertverlauf**: Jeden Tag, an dem die App geöffnet wird, speichert sie den Gesamtwert
-  (nur wenn alle Positionen einen Kurs haben) – Diagramm mit Zeitraum 1 M / 6 M / 1 J / Alles.
+  (nur wenn alle Positionen einen Kurs haben) – der Verlauf beginnt mit dem ersten Tag der Nutzung.
 - Gewinn/Verlust, Aufteilung nach Anlageklasse – die Klassen-Karten filtern die Positionstabelle,
   die Spalten lassen sich sortieren, ein Klick auf eine Zeile öffnet die Position.
 - Neue Positionen werden über „Neue Position“ in einem eigenen Fenster angelegt.

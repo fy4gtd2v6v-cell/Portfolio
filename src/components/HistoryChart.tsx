@@ -2,15 +2,27 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtEur } from '../lib/format';
 import { Snapshot } from '../lib/types';
 
-type Range = '1M' | '6M' | '1J' | 'all';
-const RANGES: [Range, string][] = [['1M', '1 M'], ['6M', '6 M'], ['1J', '1 J'], ['all', 'Alles']];
+export type Range = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1J' | 'all';
+const RANGES: [Range, string, string][] = [
+  ['1W', '1 W', '1 Woche'], ['1M', '1 M', '1 Monat'], ['3M', '3 M', '3 Monate'], ['6M', '6 M', '6 Monate'],
+  ['YTD', 'YTD', 'Seit Jahresbeginn'], ['1J', '1 J', '1 Jahr'], ['all', 'Max', 'Gesamter Zeitraum'],
+];
 const DAY = 86_400_000;
-const RANGE_DAYS: Record<Range, number> = { '1M': 31, '6M': 183, '1J': 366, all: Infinity };
+const RANGE_DAYS: Record<Exclude<Range, 'YTD'>, number> = { '1W': 7, '1M': 31, '3M': 92, '6M': 183, '1J': 366, all: Infinity };
+
+/** The snapshots that fall into a range, counted back from the newest one. */
+export function inRange(history: Snapshot[], range: Range): Snapshot[] {
+  if (history.length === 0) return [];
+  const last = history[history.length - 1].date;
+  if (range === 'YTD') return history.filter((h) => h.date >= `${last.slice(0, 4)}-01-01`);
+  const end = t(last);
+  return history.filter((h) => end - t(h.date) <= RANGE_DAYS[range] * DAY);
+}
 
 const H = 240;
 const M = { top: 12, right: 16, bottom: 28, left: 64 };
 
-const t = (d: string) => new Date(d + 'T12:00:00').getTime();
+function t(d: string) { return new Date(d + 'T12:00:00').getTime(); }
 const fmtDay = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 const fmtAxis = new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 });
 
@@ -40,11 +52,7 @@ export function HistoryChart({ history }: { history: Snapshot[] }) {
     return () => ro.disconnect();
   }, []);
 
-  const data = useMemo(() => {
-    if (history.length === 0) return [];
-    const end = t(history[history.length - 1].date);
-    return history.filter((h) => end - t(h.date) <= RANGE_DAYS[range] * DAY);
-  }, [history, range]);
+  const data = useMemo(() => inRange(history, range), [history, range]);
 
   if (history.length < 2) {
     return (
@@ -52,6 +60,24 @@ export function HistoryChart({ history }: { history: Snapshot[] }) {
         Der Verlauf füllt sich ab jetzt automatisch: Jeden Tag, an dem du die App öffnest, wird der Gesamtwert gespeichert
         (nur wenn alle Positionen einen Kurs haben). Ab dem zweiten Tag erscheint hier das Diagramm.
       </p>
+    );
+  }
+
+  const rangeSwitch = (
+    <div className="segmented small-seg" role="radiogroup" aria-label="Zeitraum">
+      {RANGES.map(([r, label, title]) => (
+        <button key={r} type="button" role="radio" aria-checked={range === r} title={title} className={range === r ? 'active' : ''} onClick={() => { setRange(r); setHover(null); }}>{label}</button>
+      ))}
+    </div>
+  );
+
+  if (data.length < 2) {
+    return (
+      <div className="history">
+        <div className="history-head"><span />{rangeSwitch}</div>
+        <p className="muted">In diesem Zeitraum gibt es erst einen Messpunkt. Wähle einen längeren Zeitraum – oder schau morgen wieder vorbei.</p>
+        <div ref={wrap} />
+      </div>
     );
   }
 
@@ -93,11 +119,7 @@ export function HistoryChart({ history }: { history: Snapshot[] }) {
           <span><i className="legend-line" style={{ background: 'var(--series-1)' }} />Gesamtwert</span>
           <span><i className="legend-line dashed" />Investiert</span>
         </div>
-        <div className="segmented small-seg" role="radiogroup" aria-label="Zeitraum">
-          {RANGES.map(([r, label]) => (
-            <button key={r} type="button" role="radio" aria-checked={range === r} className={range === r ? 'active' : ''} onClick={() => { setRange(r); setHover(null); }}>{label}</button>
-          ))}
-        </div>
+        {rangeSwitch}
       </div>
       <p className="small muted">
         {fmtDay(t(first.date))} – {fmtDay(t(last.date))}:{' '}

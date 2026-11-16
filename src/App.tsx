@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Overview } from './components/Overview';
 import { AddHolding, HoldingsView } from './components/Holdings';
+import { Home } from './components/Home';
 import { LockScreen } from './components/LockScreen';
 import { Logo } from './components/Logo';
 import { RecoveryCodeNotice } from './components/RecoveryCode';
@@ -12,13 +13,14 @@ import { today } from './lib/format';
 import { withSnapshot } from './lib/portfolio';
 import { refreshQuotes } from './lib/prices';
 import { clearStored, readStored, saveState } from './lib/storage';
-import { emptyState, PortfolioState } from './lib/types';
+import { AssetClass, emptyState, PortfolioState } from './lib/types';
 
-type Tab = 'overview' | 'holdings' | 'metals' | 'settings';
+type Tab = 'home' | 'overview' | 'holdings' | 'metals' | 'settings';
 const TABS: [Tab, string, () => JSX.Element][] = [
+  ['home', 'Vermögen', Icon.home],
   ['overview', 'Übersicht', Icon.overview],
   ['holdings', 'Positionen', Icon.holdings],
-  ['metals', 'Edelmetallpreise', Icon.metals],
+  ['metals', 'Edelmetalle', Icon.metals],
   ['settings', 'Einstellungen', Icon.settings],
 ];
 
@@ -78,7 +80,8 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
   const [state, setState] = useState<PortfolioState>(initial);
   const [vault, setVault] = useState<Vault | null>(initialVault);
   const [recoveryCode, setRecoveryCode] = useState<string | undefined>(initialRecoveryCode);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('home');
+  const [classFilter, setClassFilter] = useState<AssetClass | null>(null);
   const [adding, setAdding] = useState(false);
   const [focusId, setFocusId] = useState<string | undefined>();
   const closeAdd = useCallback(() => setAdding(false), []);
@@ -145,7 +148,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
         <nav className="tabs" aria-label="Bereiche">
           {TABS.map(([id, label, TabIcon]) => (
             <button key={id} className={tab === id ? 'tab active' : 'tab'} aria-current={tab === id ? 'page' : undefined}
-              onClick={() => { setTab(id); setFocusId(undefined); }}>
+              onClick={() => { setTab(id); setFocusId(undefined); setClassFilter(null); }}>
               <TabIcon /><span>{label}</span>
             </button>
           ))}
@@ -176,7 +179,11 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       )}
 
       <main>
-        {tab === 'overview' && <Overview state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding} />}
+        {tab === 'home' && (
+          <Home state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding}
+            onOpenClass={(c) => { setClassFilter(c); setTab('overview'); }} />
+        )}
+        {tab === 'overview' && <Overview state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />}
         {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} focusId={focusId} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
