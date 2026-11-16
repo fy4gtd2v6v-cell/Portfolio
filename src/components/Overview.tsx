@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { HistoryChart } from './HistoryChart';
-import { ClassIcon, CLASS_COLOR, Icon, useCountUp } from './ui';
+import { ClassIcon, CLASS_COLOR, Icon } from './ui';
 import { HoldingValuation, summarize, valueHolding } from '../lib/portfolio';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
 import { AssetClass, CLASS_LABEL, Holding, METAL_LABEL, PortfolioState } from '../lib/types';
@@ -14,14 +13,15 @@ interface Props {
   onGoto: (t: 'holdings' | 'metals') => void;
   onAdd: () => void;
   onOpenHolding: (id: string) => void;
+  /** class to filter by when the page opens, e.g. after a click on the pie chart */
+  initialFilter?: AssetClass | null;
 }
 
-export function Overview({ state, onGoto, onAdd, onOpenHolding }: Props) {
+export function Overview({ state, onGoto, onAdd, onOpenHolding, initialFilter = null }: Props) {
   const s = summarize(state);
-  const [filter, setFilter] = useState<AssetClass | null>(null);
+  const [filter, setFilter] = useState<AssetClass | null>(initialFilter);
   const [hover, setHover] = useState<AssetClass | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'value', dir: -1 });
-  const total = useCountUp(s.totalValue);
 
   const valued = useMemo(
     () => state.holdings.map((h) => ({ h, v: valueHolding(h, state) })),
@@ -41,7 +41,6 @@ export function Overview({ state, onGoto, onAdd, onOpenHolding }: Props) {
     );
   }
 
-  const gainClass = s.gain > 0 ? 'pos' : s.gain < 0 ? 'neg' : '';
   const open = valued.filter((x) => !x.v.closed);
   const closed = valued.filter((x) => x.v.closed);
   const activeFilter = filter && s.byClass.some((c) => c.assetClass === filter) ? filter : null;
@@ -73,38 +72,6 @@ export function Overview({ state, onGoto, onAdd, onOpenHolding }: Props) {
 
   return (
     <>
-      <section className="hero stats">
-        <div className="hero-main">
-          <div className="hero-label">Gesamtwert</div>
-          <div className="hero-value" aria-label={fmtEur(s.totalValue)}>{fmtEur(total)}</div>
-          <div className={`chip ${gainClass}`} title="Gewinn / Verlust der offenen Positionen">
-            <span aria-hidden="true">{s.gain > 0 ? '▲' : s.gain < 0 ? '▼' : '•'}</span>
-            {fmtSignedEur(s.gain)}
-            {s.gainPct !== undefined && <span> · {fmtPct(s.gainPct)}</span>}
-          </div>
-        </div>
-        <div className="hero-side">
-          <div>
-            <div className="hero-label">Investiert</div>
-            <div className="hero-num">{fmtEur(s.totalCost)}</div>
-          </div>
-          <div>
-            <div className="hero-label">Realisiert</div>
-            <div className={`hero-num ${s.realized > 0.005 ? 'pos' : s.realized < -0.005 ? 'neg' : ''}`}>
-              {Math.abs(s.realized) > 0.005 ? fmtSignedEur(s.realized) : fmtEur(0)}
-            </div>
-          </div>
-        </div>
-        {s.totalValue > 0 && (
-          <div className="hero-split" role="img" aria-label={s.byClass.map((c) => `${CLASS_LABEL[c.assetClass]} ${share.format(c.value / s.totalValue)}`).join(', ')}>
-            {s.byClass.filter((c) => c.value > 0).map((c) => (
-              <span key={c.assetClass} className={emphasis && emphasis !== c.assetClass ? 'dim' : ''}
-                style={{ flexGrow: c.value, background: CLASS_COLOR[c.assetClass] }} />
-            ))}
-          </div>
-        )}
-      </section>
-
       {s.unpriced.length > 0 && (
         <div className="banner warn">
           Ohne aktuellen Kurs (nicht im Gesamtwert): {s.unpriced.map((h) => h.name).join(', ')}.{' '}
@@ -152,11 +119,6 @@ export function Overview({ state, onGoto, onAdd, onOpenHolding }: Props) {
           {[...gramsByMetal].map(([m, g]) => `${METAL_LABEL[m as keyof typeof METAL_LABEL]} ${fmtNum(g, 2)} g (${fmtNum(fromGrams(g, 'oz'), 3)} oz)`).join(' · ')}
         </p>
       )}
-
-      <section className="card">
-        <h2>Wertverlauf</h2>
-        <HistoryChart history={state.history} />
-      </section>
 
       <section className="card">
         <div className="card-head">
