@@ -20,8 +20,11 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   (wie bei Wertpapieren steuerlich vorgeschrieben); Verkäufe über den Bestand werden abgelehnt.
 - **Wertverlauf**: Jeden Tag, an dem die App geöffnet wird, speichert sie den Gesamtwert
   (nur wenn alle Positionen einen Kurs haben) – der Verlauf beginnt mit dem ersten Tag der Nutzung.
-- Gewinn/Verlust, Aufteilung nach Anlageklasse – die Klassen-Karten filtern die Positionstabelle,
-  die Spalten lassen sich sortieren, ein Klick auf eine Zeile öffnet die Position.
+- **Livekurse**: Tabelle aller gehaltenen Positionen mit Kurs, Tagesveränderung, Bestand, Wert und
+  Gewinn/Verlust – sortierbar und nach Anlageklasse filterbar. Krypto und Edelmetalle werden jede
+  Minute automatisch aktualisiert (abschaltbar), Aktien wegen des Tageslimits nur über „Kurse aktualisieren“.
+  „Heute“ bedeutet bei Krypto die letzten 24 Stunden, bei Aktien seit dem letzten Börsenschluss,
+  bei Edelmetallen seit dem letzten Abruf an einem früheren Tag.
 - Neue Positionen werden über „Neue Position“ in einem eigenen Fenster angelegt.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).
 

@@ -493,3 +493,31 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 }
 .history-head > * { min-width: 0; }
 .card-head > * { min-width: 0; }
+
+/* ---------- live quotes ---------- */
+.live-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; }
+.live-head h2 { margin: 0 0 2px; font-size: 19px; }
+.live-head p { margin: 0; }
+.live-status { display: flex; align-items: center; gap: 14px; flex: 1 1 260px; }
+.live-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border-strong); flex: none; position: relative; }
+.live-dot.on { background: var(--pos); }
+.live-dot.on::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--pos); opacity: 0; animation: ping 2s ease-out infinite; }
+.live-dot.busy { background: var(--brand); }
+@keyframes ping { 0% { transform: scale(.5); opacity: .7; } 100% { transform: scale(1.4); opacity: 0; } }
+.live-day-value { font-size: 20px; font-weight: 660; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.live-note { flex-basis: 100%; }
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; }
+.switch input {
+  appearance: none; -webkit-appearance: none; width: 42px; height: 24px; border-radius: 999px; padding: 0; margin: 0; flex: none;
+  background: var(--border-strong); border: none; position: relative; cursor: pointer; transition: background .15s;
+}
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .3); transition: transform .15s; }
+.switch input:checked { background: var(--brand); }
+.switch input:checked::after { transform: translateX(18px); }
+.switch input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.price { display: inline-block; border-radius: 6px; padding: 0 4px; margin: 0 -4px; font-weight: 600; }
+.price.flash-up { animation: flash-up 1.4s ease-out; }
+.price.flash-down { animation: flash-down 1.4s ease-out; }
+@keyframes flash-up { 0% { background: color-mix(in srgb, var(--pos) 35%, transparent); } 100% { background: transparent; } }
+@keyframes flash-down { 0% { background: color-mix(in srgb, var(--neg) 35%, transparent); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .live-dot.on::after, .price.flash-up, .price.flash-down { animation: none; } }

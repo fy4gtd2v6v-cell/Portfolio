@@ -62,6 +62,8 @@ export interface MetalPrice {
   updatedAt: string; // ISO
   /** missing in older data, means 'manual' */
   source?: 'api' | 'manual';
+  /** the last price known from an earlier day, to show the change since then */
+  prevDay?: { date: string; eurPerGram: number };
 }
 
 export interface Quote {
@@ -71,6 +73,8 @@ export interface Quote {
   currency: Currency;
   source: 'api' | 'manual';
   updatedAt: string; // ISO
+  /** change reported by the price service, as a fraction: last 24 h (crypto) or since the previous close (stocks) */
+  changePct?: number;
 }
 
 export interface Settings {
@@ -78,6 +82,8 @@ export interface Settings {
   coingeckoKey: string;
   /** 'live': spot prices are fetched with the other quotes; 'manual': only prices typed in by hand */
   metalMode: 'live' | 'manual';
+  /** refresh crypto and metal prices every minute while the app is open */
+  autoRefresh: boolean;
 }
 
 export interface PortfolioState {
@@ -103,7 +109,7 @@ export function emptyState(): PortfolioState {
     metalPrices: {},
     quotes: {},
     history: [],
-    settings: { alphaVantageKey: '', coingeckoKey: '', metalMode: 'live' },
+    settings: { alphaVantageKey: '', coingeckoKey: '', metalMode: 'live', autoRefresh: true },
   };
 }
 

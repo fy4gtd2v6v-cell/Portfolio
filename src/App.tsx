@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Overview } from './components/Overview';
 import { AddHolding, HoldingsView } from './components/Holdings';
 import { Home } from './components/Home';
+import { LiveQuotes, LiveStatus } from './components/LiveQuotes';
 import { LockScreen } from './components/LockScreen';
 import { Logo } from './components/Logo';
 import { RecoveryCodeNotice } from './components/RecoveryCode';
@@ -15,10 +15,10 @@ import { refreshQuotes } from './lib/prices';
 import { clearStored, readStored, saveState } from './lib/storage';
 import { AssetClass, emptyState, PortfolioState } from './lib/types';
 
-type Tab = 'home' | 'overview' | 'holdings' | 'metals' | 'settings';
+type Tab = 'home' | 'live' | 'holdings' | 'metals' | 'settings';
 const TABS: [Tab, string, () => JSX.Element][] = [
   ['home', 'Vermögen', Icon.home],
-  ['overview', 'Übersicht', Icon.overview],
+  ['live', 'Livekurse', Icon.live],
   ['holdings', 'Positionen', Icon.holdings],
   ['metals', 'Edelmetalle', Icon.metals],
   ['settings', 'Einstellungen', Icon.settings],
@@ -26,6 +26,10 @@ const TABS: [Tab, string, () => JSX.Element][] = [
 
 /** Lock automatically after this much time without interaction. */
 export const AUTO_LOCK_MS = 10 * 60 * 1000;
+
+/** How often crypto and metal prices are refreshed automatically. */
+export const AUTO_REFRESH_MS = 60 * 1000;
+const FX_MAX_AGE_MS = 60 * 60 * 1000;
 
 export type Update = (fn: (s: PortfolioState) => PortfolioState) => void;
 
@@ -126,18 +130,58 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
 
   const update: Update = (fn) => setState((s) => fn(s));
 
-  async function refresh() {
+  const [lastLive, setLastLive] = useState<{ at?: number; error?: string }>({});
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const busyRef = useRef(false);
+
+  /** Fetches prices. The automatic run leaves stocks out (daily quota) and stays quiet. */
+  const loadPrices = useCallback(async (auto: boolean) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setRefreshing(true);
-    setMessage(null);
+    if (!auto) setMessage(null);
     try {
-      const r = await refreshQuotes(state);
-      setState((s) => ({ ...s, quotes: { ...s.quotes, ...r.quotes }, metalPrices: { ...s.metalPrices, ...r.metalPrices } }));
-      const lines = [`${r.updated} Kurs${r.updated === 1 ? '' : 'e'} aktualisiert.`, ...r.errors];
-      setMessage({ kind: r.errors.length ? 'error' : 'ok', lines });
+      const r = await refreshQuotes(stateRef.current, auto ? { skipStocks: true, fxMaxAgeMs: FX_MAX_AGE_MS } : {});
+      // Merge only what was fetched: the state may have changed while the request was running.
+      setState((s) => ({
+        ...s,
+        quotes: { ...s.quotes, ...r.changed.quotes },
+        metalPrices: s.settings.metalMode === 'manual' ? s.metalPrices : { ...s.metalPrices, ...r.changed.metalPrices },
+      }));
+      setLastLive((cur) => ({ at: r.updated > 0 ? Date.now() : cur.at, error: r.errors[0] }));
+      if (!auto) {
+        const lines = [`${r.updated} Kurs${r.updated === 1 ? '' : 'e'} aktualisiert.`, ...r.errors];
+        setMessage({ kind: r.errors.length ? 'error' : 'ok', lines });
+      }
     } finally {
+      busyRef.current = false;
       setRefreshing(false);
     }
-  }
+  }, []);
+  const refresh = () => loadPrices(false);
+
+  // Automatic refresh: crypto and live metal prices, once a minute while the page is visible.
+  const autoEligible = state.holdings.some(
+    (h) => (h.assetClass === 'crypto' && !!h.coinId) || (h.assetClass === 'metal' && state.settings.metalMode !== 'manual'),
+  );
+  const autoOn = state.settings.autoRefresh && autoEligible;
+  useEffect(() => {
+    if (!autoOn) return;
+    let last = 0;
+    const run = () => {
+      if (document.hidden || Date.now() - last < AUTO_REFRESH_MS - 1000) return;
+      last = Date.now();
+      loadPrices(true);
+    };
+    run();
+    const id = window.setInterval(run, AUTO_REFRESH_MS);
+    document.addEventListener('visibilitychange', run);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', run);
+    };
+  }, [autoOn, loadPrices]);
 
   const hasLive = state.holdings.some((h) => h.assetClass !== 'metal' || state.settings.metalMode !== 'manual');
 
@@ -181,9 +225,12 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       <main>
         {tab === 'home' && (
           <Home state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding}
-            onOpenClass={(c) => { setClassFilter(c); setTab('overview'); }} />
+            onOpenClass={(c) => { setClassFilter(c); setTab('live'); }} />
         )}
-        {tab === 'overview' && <Overview state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />}
+        {tab === 'live' && (
+          <LiveQuotes state={state} update={update} live={{ lastAt: lastLive.at, error: lastLive.error, busy: refreshing } satisfies LiveStatus}
+            onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />
+        )}
         {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} focusId={focusId} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
