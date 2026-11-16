@@ -15,7 +15,7 @@ const svg = (children: React.ReactNode, size = 18) => (
 
 export const Icon = {
   home: () => svg(<><path d="M3 11l9-7 9 7" /><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" /></>),
-  overview: () => svg(<><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>),
+  live: () => svg(<path d="M3 12h4l2.5-7 4 14 2.5-7h5" />),
   holdings: () => svg(<><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="3.5" cy="6" r="1" /><circle cx="3.5" cy="12" r="1" /><circle cx="3.5" cy="18" r="1" /></>),
   metals: () => svg(<><path d="M7 8h10l4 10H3L7 8z" /><path d="M9.5 8l1-3h3l1 3" /></>),
   settings: () => svg(<><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></>),

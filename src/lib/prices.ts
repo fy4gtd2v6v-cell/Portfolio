@@ -28,15 +28,22 @@ function coingeckoHeaders(apiKey?: string): RequestInit | undefined {
   return apiKey ? { headers: { 'x-cg-demo-api-key': apiKey } } : undefined;
 }
 
-/** Returns EUR prices keyed by CoinGecko id. Ids without a price are missing from the result. */
-export async function fetchCryptoPrices(ids: string[], apiKey = '', f: FetchFn = fetch): Promise<Record<string, number>> {
+export interface LivePrice {
+  price: number;
+  /** change as a fraction (0.012 = +1.2 %), if the service reports one */
+  changePct?: number;
+}
+
+/** Returns EUR prices and the 24 h change keyed by CoinGecko id. Ids without a price are missing from the result. */
+export async function fetchCryptoPrices(ids: string[], apiKey = '', f: FetchFn = fetch): Promise<Record<string, LivePrice>> {
   if (ids.length === 0) return {};
-  const url = `${COINGECKO}/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=eur`;
+  const url = `${COINGECKO}/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=eur&include_24hr_change=true`;
   const data = await getJson(f, url, coingeckoHeaders(apiKey));
-  const out: Record<string, number> = {};
+  const out: Record<string, LivePrice> = {};
   for (const id of ids) {
     const eur = data?.[id]?.eur;
-    if (typeof eur === 'number') out[id] = eur;
+    const change = data?.[id]?.eur_24h_change;
+    if (typeof eur === 'number') out[id] = { price: eur, changePct: typeof change === 'number' ? change / 100 : undefined };
   }
   return out;
 }
@@ -64,15 +71,18 @@ function alphaVantageError(data: any): string | undefined {
   return String(msg);
 }
 
-export async function fetchStockPrice(symbol: string, apiKey: string, f: FetchFn = fetch): Promise<number> {
+/** Latest price and the change since the previous close. */
+export async function fetchStockPrice(symbol: string, apiKey: string, f: FetchFn = fetch): Promise<LivePrice> {
   if (!apiKey) throw new PriceError('Bitte in den Einstellungen einen Alpha-Vantage-API-Key eintragen.');
   const url = `${ALPHA_VANTAGE}?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`;
   const data = await getJson(f, url);
   const err = alphaVantageError(data);
   if (err) throw new PriceError(err);
-  const price = parseFloat(data?.['Global Quote']?.['05. price']);
+  const quote = data?.['Global Quote'];
+  const price = parseFloat(quote?.['05. price']);
   if (!Number.isFinite(price)) throw new PriceError(`Kein Kurs für „${symbol}“ gefunden.`);
-  return price;
+  const change = parseFloat(quote?.['10. change percent']); // e.g. "1.0054%"
+  return { price, changePct: Number.isFinite(change) ? change / 100 : undefined };
 }
 
 export interface StockMatch {
@@ -155,6 +165,42 @@ export async function fetchMetalPricesEur(metals: Metal[], f: FetchFn = fetch): 
   return out;
 }
 
+let fxCache: { at: number; rates: Partial<Record<Currency, number>> } | undefined;
+
+/** fetchEurRates with a small in-memory cache, so the automatic refresh does not ask for the same daily rates every minute. */
+async function cachedEurRates(currencies: Currency[], f: FetchFn, maxAgeMs: number): Promise<Partial<Record<Currency, number>>> {
+  if (maxAgeMs > 0 && fxCache && Date.now() - fxCache.at < maxAgeMs && currencies.every((c) => fxCache!.rates[c] !== undefined)) {
+    return fxCache.rates;
+  }
+  const rates = await fetchEurRates(currencies, f);
+  if (maxAgeMs > 0) fxCache = { at: Date.now(), rates: { ...fxCache?.rates, ...rates } };
+  return rates;
+}
+
+const localDay = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+/**
+ * The metal price service reports no daily change, so we keep our own reference:
+ * the last price we knew on an earlier day. `next` gets that reference attached.
+ */
+export function carryPrevDay(old: MetalPrice | undefined, next: MetalPrice): MetalPrice {
+  if (!old) return next;
+  const [oldDay, newDay] = [localDay(old.updatedAt), localDay(next.updatedAt)];
+  if (oldDay && newDay && oldDay < newDay) return { ...next, prevDay: { date: oldDay, eurPerGram: old.eurPerGram } };
+  return old.prevDay ? { ...next, prevDay: old.prevDay } : next;
+}
+
+/** Change of a metal price against the last earlier day we have a price for, as a fraction. */
+export function metalChangePct(p: MetalPrice | undefined): number | undefined {
+  if (!p?.prevDay || !(p.prevDay.eurPerGram > 0)) return undefined;
+  return p.eurPerGram / p.prevDay.eurPerGram - 1;
+}
+
 export function isCurrency(c: string): c is Currency {
   return (CURRENCIES as string[]).includes(c);
 }
@@ -164,6 +210,8 @@ export function isCurrency(c: string): c is Currency {
 export interface RefreshResult {
   quotes: Record<string, Quote>;
   metalPrices: PortfolioState['metalPrices'];
+  /** only the entries this run actually fetched, for merging into a state that may have changed meanwhile */
+  changed: { quotes: Record<string, Quote>; metalPrices: PortfolioState['metalPrices'] };
   errors: string[];
   updated: number;
 }
@@ -176,19 +224,31 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function refreshQuotes(
   state: PortfolioState,
-  opts: { f?: FetchFn; stockDelayMs?: number; now?: () => Date; metals?: Metal[] } = {},
+  opts: {
+    f?: FetchFn;
+    stockDelayMs?: number;
+    now?: () => Date;
+    metals?: Metal[];
+    /** leave stocks out, e.g. for the automatic refresh: the free Alpha Vantage quota is 25 calls a day */
+    skipStocks?: boolean;
+    /** reuse exchange rates fetched less than this many ms ago (ECB rates change once a day) */
+    fxMaxAgeMs?: number;
+  } = {},
 ): Promise<RefreshResult> {
   const f = opts.f ?? fetch;
   const delay = opts.stockDelayMs ?? 1200;
   const now = (opts.now ?? (() => new Date()))().toISOString();
   const quotes = { ...state.quotes };
   const metalPrices = { ...state.metalPrices };
+  const changed: RefreshResult['changed'] = { quotes: {}, metalPrices: {} };
   const errors: string[] = [];
   let updated = 0;
 
   const uniq = <T,>(xs: T[]) => [...new Set(xs)];
   const crypto = uniq(state.holdings.filter((h) => h.assetClass === 'crypto' && h.coinId).map((h) => h.coinId!));
-  const stocks = state.holdings.filter((h): h is Holding & { symbol: string } => h.assetClass === 'stock' && !!h.symbol);
+  const stocks = opts.skipStocks
+    ? []
+    : state.holdings.filter((h): h is Holding & { symbol: string } => h.assetClass === 'stock' && !!h.symbol);
   const stockBySymbol = new Map(stocks.map((h) => [h.symbol.toUpperCase(), h]));
 
   if (crypto.length) {
@@ -199,8 +259,9 @@ export async function refreshQuotes(
           errors.push(`Krypto: kein Kurs für „${id}“.`);
           continue;
         }
-        quotes[quoteKey({ assetClass: 'crypto', coinId: id })!] = {
-          eurPrice: prices[id], price: prices[id], currency: 'EUR', source: 'api', updatedAt: now,
+        const key = quoteKey({ assetClass: 'crypto', coinId: id })!;
+        quotes[key] = changed.quotes[key] = {
+          eurPrice: prices[id].price, price: prices[id].price, currency: 'EUR', source: 'api', updatedAt: now, changePct: prices[id].changePct,
         };
         updated++;
       }
@@ -220,7 +281,7 @@ export async function refreshQuotes(
   const currencies: Currency[] = [...stocks.map((h) => h.currency ?? 'EUR'), ...(metals.length ? ['USD' as const] : [])];
   if (currencies.some((c) => c !== 'EUR')) {
     try {
-      rates = await fetchEurRates(currencies, f);
+      rates = await cachedEurRates(currencies, f, opts.fxMaxAgeMs ?? 0);
     } catch (e) {
       errors.push(`Wechselkurse: ${(e as Error).message}`);
     }
@@ -239,7 +300,7 @@ export async function refreshQuotes(
             continue;
           }
           const price: MetalPrice = { eurPerGram: spotToEurPerGram(spot.usdPerOunce, rates.USD), updatedAt: spot.updatedAt ?? now, source: 'api' };
-          metalPrices[m] = price;
+          metalPrices[m] = changed.metalPrices[m] = carryPrevDay(state.metalPrices[m], price);
           updated++;
         }
       } catch (e) {
@@ -260,8 +321,8 @@ export async function refreshQuotes(
         continue;
       }
       try {
-        const price = await fetchStockPrice(symbol, state.settings.alphaVantageKey, f);
-        quotes[quoteKey(h)!] = { eurPrice: price * rate, price, currency, source: 'api', updatedAt: now };
+        const { price, changePct } = await fetchStockPrice(symbol, state.settings.alphaVantageKey, f);
+        quotes[quoteKey(h)!] = changed.quotes[quoteKey(h)!] = { eurPrice: price * rate, price, currency, source: 'api', updatedAt: now, changePct };
         updated++;
       } catch (e) {
         errors.push(`${symbol}: ${(e as Error).message}`);
@@ -271,5 +332,5 @@ export async function refreshQuotes(
     }
   }
 
-  return { quotes, metalPrices, errors, updated };
+  return { quotes, metalPrices, changed, errors, updated };
 }

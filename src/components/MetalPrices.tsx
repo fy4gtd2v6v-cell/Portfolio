@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Update } from '../App';
 import { fmtDate, fmtEur, parseNum } from '../lib/format';
-import { fetchMetalPricesEur } from '../lib/prices';
+import { carryPrevDay, fetchMetalPricesEur } from '../lib/prices';
 import { Metal, METAL_LABEL, METALS, PortfolioState } from '../lib/types';
 import { pricePerGram, pricePerUnit, WeightUnit } from '../lib/units';
 
@@ -20,7 +20,10 @@ export function MetalPrices({ state, update }: { state: PortfolioState; update: 
     setMsg(null);
     try {
       const prices = await fetchMetalPricesEur(METALS);
-      update((s) => ({ ...s, metalPrices: { ...s.metalPrices, ...prices } }));
+      update((s) => ({
+        ...s,
+        metalPrices: { ...s.metalPrices, ...Object.fromEntries(METALS.filter((m) => prices[m]).map((m) => [m, carryPrevDay(s.metalPrices[m], prices[m]!)])) },
+      }));
       const missing = METALS.filter((m) => !prices[m]).map((m) => METAL_LABEL[m]);
       setMsg(missing.length
         ? { ok: false, text: `Kein Live-Preis für: ${missing.join(', ')}.` }
@@ -82,7 +85,7 @@ function MetalRow({ metal, state, update, editable }: { metal: Metal; state: Por
     setError('');
     update((s) => ({
       ...s,
-      metalPrices: { ...s.metalPrices, [metal]: { eurPerGram: pricePerGram(n, unit), updatedAt: new Date().toISOString(), source: 'manual' } },
+      metalPrices: { ...s.metalPrices, [metal]: carryPrevDay(s.metalPrices[metal], { eurPerGram: pricePerGram(n, unit), updatedAt: new Date().toISOString(), source: 'manual' }) },
     }));
     setInput('');
   }
