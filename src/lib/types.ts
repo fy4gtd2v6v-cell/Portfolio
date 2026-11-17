@@ -106,6 +106,11 @@ export interface Holding {
   coinId?: string;
   /** stock only: ISIN, e.g. from a bank import; identifies the security when no symbol is known */
   isin?: string;
+  /**
+   * The depot or provider holding the position ("ING", "Trade Republic", "Flexgold").
+   * Imports only update positions of the same depot, so the same security in two depots stays two positions.
+   */
+  account?: string;
   /** stock only: share or fund/ETF; guessed from the name when missing */
   securityType?: 'stock' | 'etf';
   /** cash only: account balance in EUR */
@@ -146,6 +151,8 @@ export interface Settings {
   metalMode: 'live' | 'manual';
   /** refresh crypto and metal prices every minute while the app is open */
   autoRefresh: boolean;
+  /** depots whose positions are folded away in the lists */
+  collapsedDepots?: string[];
 }
 
 export interface PortfolioState {

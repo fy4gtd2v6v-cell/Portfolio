@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { fmtEur, fmtPct, fmtSignedEur } from '../lib/format';
 import { AssetClass, Category } from '../lib/types';
 
 export const CATEGORY_COLOR: Record<Category, string> = {
@@ -125,4 +126,43 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
       </div>
     </div>
   );
+}
+
+/** Remembered open/closed state of depot groups, shared by all lists. */
+export function useDepotFolding(collapsed: string[] | undefined, setCollapsed: (next: string[]) => void) {
+  const set = new Set(collapsed ?? []);
+  return {
+    isOpen: (depot: string) => !set.has(depot),
+    toggle: (depot: string) => {
+      const next = new Set(set);
+      if (next.has(depot)) next.delete(depot);
+      else next.add(depot);
+      setCollapsed([...next]);
+    },
+    setAll: (depots: string[], open: boolean) => setCollapsed(open ? [] : depots),
+  };
+}
+
+/** Clickable header of a depot group with its totals. */
+export function DepotHeader({ depot, count, value, gain, cost, open, onToggle, as = 'div' }: {
+  depot: string;
+  count: number;
+  value: number;
+  gain: number;
+  cost: number;
+  open: boolean;
+  onToggle: () => void;
+  as?: 'div' | 'td';
+}) {
+  const cls = gain > 0.005 ? 'pos' : gain < -0.005 ? 'neg' : 'muted';
+  const content = (
+    <button type="button" className="depot-header" aria-expanded={open} onClick={onToggle}>
+      <span className={`chevron ${open ? 'open' : ''}`} aria-hidden="true">▸</span>
+      <span className="depot-name">{depot}</span>
+      <span className="muted small depot-count">{count} Position{count === 1 ? '' : 'en'}</span>
+      <span className="depot-value">{fmtEur(value)}</span>
+      <span className={`small depot-gain ${cls}`}>{cost > 0 ? `${fmtSignedEur(gain)} · ${fmtPct(gain / cost)}` : ''}</span>
+    </button>
+  );
+  return as === 'td' ? <td colSpan={99} className="depot-cell">{content}</td> : content;
 }

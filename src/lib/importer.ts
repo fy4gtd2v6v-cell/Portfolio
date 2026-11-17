@@ -43,7 +43,8 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'costPrice', label: 'Einstandskurs (je Stück)', names: ['Einstandskurs', 'Kaufkurs', 'Einstandspreis', 'Kaufpreis', 'Durchschnittskurs', 'Durchschnittlicher Kaufkurs', 'Avg price', 'Average cost'] },
     { key: 'costTotal', label: 'Einstandswert (gesamt)', names: ['Einstandswert', 'Kaufwert', 'Einstandssumme', 'Kaufsumme', 'Investiert', 'Cost basis'] },
     { key: 'value', label: 'Kurswert (gesamt)', names: ['Kurswert', 'Marktwert', 'Aktueller Wert', 'Gesamtwert', 'Wert', 'Value', 'Market value'] },
-    { key: 'price', label: 'Aktueller Kurs (je Stück)', names: ['Kurs', 'Aktueller Kurs', 'Letzter Kurs', 'Preis', 'Price'] },
+    { key: 'price', label: 'Aktueller Kurs (je Stück)', names: ['Kurs', 'Aktueller Kurs', 'Letzter Kurs', 'Bewertungskurs', 'Preis', 'Price'] },
+    { key: 'priceDate', label: 'Kursdatum', names: ['Kursdatum', 'Kurszeit', 'Bewertungsdatum', 'Zeit', 'Stand'] },
     { key: 'currency', label: 'Währung', names: ['Währung', 'Waehrung', 'Currency'] },
   ],
   transactions: [
@@ -288,6 +289,8 @@ export interface PositionDraft {
   cost?: number;
   /** current price per unit in EUR, if the file states it */
   price?: number;
+  /** the day that price is from, YYYY-MM-DD */
+  priceDate?: string;
   currency?: string;
   warnings: string[];
 }
@@ -303,7 +306,8 @@ export function readPositions(file: ParsedFile, mapping: Mapping): { drafts: Pos
   let skipped = 0;
   file.rows.forEach((row, i) => {
     const isin = cleanIsin(cell(row, mapping.isin));
-    const name = cell(row, mapping.name) || isin || '';
+    // ING pads names with spaces ("BLOOM ENERGY A   DL-,0001").
+    const name = (cell(row, mapping.name) || isin || '').replace(/\s+/g, ' ').trim();
     const quantity = parseAmount(cell(row, mapping.quantity));
     if (!name || !(quantity > 0)) {
       skipped++;
@@ -319,7 +323,8 @@ export function readPositions(file: ParsedFile, mapping: Mapping): { drafts: Pos
     const currency = cell(row, mapping.currency).toUpperCase() || undefined;
     if (cost === undefined) warnings.push('Kein Einstandswert in der Datei – bitte nachtragen.');
     if (currency && currency !== 'EUR') warnings.push(`Werte in ${currency} – bitte prüfen, sie werden als Euro übernommen.`);
-    drafts.push({ key: `${isin ?? name}#${i}`, name, isin, quantity, cost: cost !== undefined && cost >= 0 ? cost : undefined, price: price !== undefined && price > 0 ? price : undefined, currency, warnings });
+    const priceDate = parseDate(cell(row, mapping.priceDate ?? -1));
+    drafts.push({ key: `${isin ?? name}#${i}`, name, isin, quantity, cost: cost !== undefined && cost >= 0 ? cost : undefined, price: price !== undefined && price > 0 ? price : undefined, priceDate, currency, warnings });
   });
   return { drafts, skipped };
 }
@@ -674,13 +679,13 @@ export const brokerBalance = (b: BrokerAccount, withPending: boolean): number =>
  */
 export function applyBrokerAccount(
   state: PortfolioState,
-  opts: { accountId?: string; name: string; events: CashEvent[]; withPending: boolean },
+  opts: { accountId?: string; name: string; events: CashEvent[]; withPending: boolean; depot?: string },
 ): PortfolioState {
   const existing = opts.accountId ? state.holdings.find((h) => h.id === opts.accountId) : undefined;
   const next = foldCashEvents(existing?.broker ?? emptyBroker(), opts.events);
   const broker: BrokerAccount = { refs: next.refs, cash: next.cash, pending: next.pending, withPending: opts.withPending };
   const lastDate = opts.events.reduce((d, e) => (e.date > d ? e.date : d), existing?.balanceDate ?? '');
-  const fields = { broker, balance: brokerBalance(broker, opts.withPending), balanceDate: lastDate || existing?.balanceDate };
+  const fields = { broker, balance: brokerBalance(broker, opts.withPending), balanceDate: lastDate || existing?.balanceDate, account: opts.depot ?? existing?.account };
   if (existing) {
     return { ...state, holdings: state.holdings.map((h) => (h.id === existing.id ? { ...h, ...fields } : h)) };
   }
@@ -691,14 +696,42 @@ export function applyBrokerAccount(
 // ---------- applying to the portfolio ----------
 
 /** Same ISIN, or – when one side has none, e.g. after an earlier import without ISIN – the same name. */
-const sameSecurity = (h: Holding, d: { isin?: string; name: string; metal?: Metal }): boolean =>
+const sameAsset = (h: Holding, d: { isin?: string; name: string; metal?: Metal }): boolean =>
   d.metal
     ? h.assetClass === 'metal' && h.metal === d.metal && normalizeHeader(h.name) === normalizeHeader(d.name)
     : h.assetClass === 'stock' && (d.isin && h.isin ? h.isin === d.isin : normalizeHeader(h.name) === normalizeHeader(d.name));
 
+/**
+ * Whether a holding belongs to the depot an import comes from.
+ * Positions from before depots were recorded have no account. They are claimed
+ * by the kind of import that made them: a depot snapshot only takes snapshot
+ * (or broken 0-€) positions, a transaction list only takes positions with a
+ * real trade history. That keeps e.g. the Trade Republic history of a share
+ * apart from the same share in the ING depot.
+ */
+function sameDepot(h: Holding, account: string | undefined, snapshot: boolean): boolean {
+  if (!account) return !h.account;
+  if (h.account) return h.account === account;
+  return snapshot ? hasOnlyBrokenLots(h) : !h.purchases.some((p) => p.ref?.startsWith('snapshot:'));
+}
+
+const sameSecurity = (h: Holding, d: { isin?: string; name: string; metal?: Metal }, account?: string, snapshot = false): boolean =>
+  sameAsset(h, d) && sameDepot(h, account, snapshot);
+
 /** The existing holding a draft would update, if any. */
-export function matchHolding(state: PortfolioState, d: { isin?: string; name: string }): Holding | undefined {
-  return state.holdings.find((h) => sameSecurity(h, d));
+export function matchHolding(state: PortfolioState, d: { isin?: string; name: string }, account?: string, snapshot = false): Holding | undefined {
+  return state.holdings.find((h) => sameSecurity(h, d, account, snapshot));
+}
+
+/** The depot or provider a file comes from, recognised by columns only that provider uses. */
+export function detectProvider(file: ParsedFile): string | undefined {
+  const h = new Set(file.header.map(normalizeHeader));
+  const pre = file.preamble.map((r) => r.join(' ')).join(' ').toLowerCase();
+  if (h.has('vaultid')) return 'Flexgold';
+  if (h.has('accounttype') && h.has('transactionid')) return 'Trade Republic';
+  if ((h.has('einheitskennzeichen') && h.has('bewertungskurs')) || pre.includes('umsatzanzeige')) return 'ING';
+  if (h.has('auftragskonto') && h.has('glaeubigerid')) return 'Sparkasse';
+  return undefined;
 }
 
 /**
@@ -706,22 +739,25 @@ export function matchHolding(state: PortfolioState, d: { isin?: string; name: st
  * replaced by the imported quantity and cost; the file knows no purchase
  * dates, so it becomes a single lot dated `today`.
  */
-export function applyPositions(state: PortfolioState, drafts: PositionDraft[], today: string): PortfolioState {
+export function applyPositions(state: PortfolioState, drafts: PositionDraft[], today: string, account?: string): PortfolioState {
   const holdings = [...state.holdings];
   const quotes = { ...state.quotes };
   for (const d of drafts) {
     // Marked as a snapshot: a transaction history imported later replaces it instead of adding to it.
     const lot: Purchase = { id: newId(), kind: 'buy', date: today, quantity: d.quantity, totalCost: d.cost ?? 0, ref: `snapshot:${today}`, note: 'Depotbestand' };
-    const i = holdings.findIndex((h) => sameSecurity(h, d));
+    const i = holdings.findIndex((h) => sameSecurity(h, d, account, true));
     const holding: Holding = i >= 0
-      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases: [lot] }
-      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases: [lot] };
+      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, account: account ?? holdings[i].account, purchases: [lot] }
+      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', account, purchases: [lot] };
     if (i >= 0) holdings[i] = holding;
     else holdings.push(holding);
     // The file's price is a stand-in until a live quote exists; never overwrite one from the price service.
     const key = quoteKey(holding);
-    if (key && d.price !== undefined && quotes[key]?.source !== 'api') {
-      quotes[key] = { eurPrice: d.price, price: d.price, currency: 'EUR', source: 'manual', updatedAt: new Date().toISOString() };
+    const existing = key ? quotes[key] : undefined;
+    const date = d.priceDate ?? today;
+    // The same security in another depot shares the quote: keep whichever price is newer.
+    if (key && d.price !== undefined && existing?.source !== 'api' && (!existing || existing.updatedAt.slice(0, 10) <= date)) {
+      quotes[key] = { eurPrice: d.price, price: d.price, currency: 'EUR', source: 'manual', updatedAt: `${date}T12:00:00.000Z` };
     }
   }
   return { ...state, holdings, quotes };
@@ -752,9 +788,9 @@ export function hasOnlyBrokenLots(h: Holding): boolean {
  * trades entered by hand, which have no ref – when date, quantity, amount and
  * kind are the same. With `replace`, the file's trades replace all existing ones.
  */
-export function planTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false): TradePlan[] {
+export function planTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false, account?: string): TradePlan[] {
   return drafts.map((draft) => {
-    const holding = state.holdings.find((h) => sameSecurity(h, draft));
+    const holding = state.holdings.find((h) => sameSecurity(h, draft, account));
     if (!holding) return { draft, holding, added: draft.purchases, duplicates: 0, replaced: false };
     if (replace || hasOnlyBrokenLots(holding)) return { draft, holding, added: draft.purchases, duplicates: 0, replaced: true };
     const refs = new Set(holding.purchases.map((p) => p.ref).filter(Boolean));
@@ -785,20 +821,20 @@ export function planTransactions(state: PortfolioState, drafts: TransactionDraft
  * position's existing trades are replaced instead.
  * The price of the newest trade stands in for a live quote until one exists.
  */
-export function applyTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false): PortfolioState {
+export function applyTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false, account?: string): PortfolioState {
   const holdings = [...state.holdings];
   const quotes = { ...state.quotes };
-  for (const plan of planTransactions(state, drafts, replace)) {
+  for (const plan of planTransactions(state, drafts, replace, account)) {
     const { draft: d } = plan;
     const i = plan.holding ? holdings.findIndex((h) => h.id === plan.holding!.id) : -1;
     const base = i >= 0 && !plan.replaced ? holdings[i].purchases : [];
     const purchases = [...base, ...plan.added].sort((a, b) => a.date.localeCompare(b.date));
     const fresh: Holding = d.metal
       // The provider's grams are fine metal, so the fineness is 1000 ‰.
-      ? { id: newId(), assetClass: 'metal', name: d.name, metal: d.metal, fineness: 1000, purchases }
-      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', securityType: d.securityType, purchases };
+      ? { id: newId(), assetClass: 'metal', name: d.name, metal: d.metal, fineness: 1000, account, purchases }
+      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', securityType: d.securityType, account, purchases };
     const holding: Holding = i >= 0
-      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, securityType: holdings[i].securityType ?? d.securityType, purchases }
+      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, securityType: holdings[i].securityType ?? d.securityType, account: account ?? holdings[i].account, purchases }
       : fresh;
     if (i >= 0) holdings[i] = holding;
     else holdings.push(holding);
@@ -817,15 +853,15 @@ export function applyTransactions(state: PortfolioState, drafts: TransactionDraf
 /** Sets the balance of an account, creating the account when `accountId` is undefined. */
 export function applyBalance(
   state: PortfolioState,
-  account: { accountId?: string; name: string; iban?: string; balance: number; balanceDate: string },
+  account: { accountId?: string; name: string; iban?: string; balance: number; balanceDate: string; depot?: string },
 ): PortfolioState {
-  const { accountId, name, iban, balance, balanceDate } = account;
+  const { accountId, name, iban, balance, balanceDate, depot } = account;
   if (accountId) {
     return {
       ...state,
-      holdings: state.holdings.map((h) => (h.id === accountId ? { ...h, balance, balanceDate, iban: iban ?? h.iban } : h)),
+      holdings: state.holdings.map((h) => (h.id === accountId ? { ...h, balance, balanceDate, iban: iban ?? h.iban, account: depot ?? h.account } : h)),
     };
   }
-  const holding: Holding = { id: newId(), assetClass: 'cash', name, iban, balance, balanceDate, purchases: [] };
+  const holding: Holding = { id: newId(), assetClass: 'cash', name, iban, balance, balanceDate, account: depot, purchases: [] };
   return { ...state, holdings: [...state.holdings, holding] };
 }
