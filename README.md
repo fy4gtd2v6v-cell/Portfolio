@@ -38,6 +38,13 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   Spätere oder überlappende Exporte werden **ergänzt**, nicht doppelt gezählt: Jede Buchung wird an
   ihrer Buchungsnummer erkannt (ohne Nummer an Datum, Stückzahl und Betrag), das Guthaben wird mit
   den neuen Buchungen fortgeschrieben.
+- **Edelmetall-Konten** (z. B. Flexgold): Der Transaktionsverlauf als Excel-Datei (.xlsx) oder CSV
+  wird je Metall zu einer Position in Gramm mit allen Käufen; Ein- und Auszahlungen bilden das Guthaben.
+  Excel-Dateien werden ohne Zusatzbibliothek direkt im Browser entpackt.
+- **Kategorien mit eigenen Farben**: Aktien, ETFs & Fonds, Gold, Silber, Platin, Palladium, Konten und
+  Krypto – in Kreisdiagramm, Filtern und Listen. Ob eine Position Aktie oder ETF ist, kommt aus dem
+  Import oder dem Namen und lässt sich bei der Position umstellen. Die Farbreihenfolge ist so gewählt,
+  dass benachbarte Segmente auch bei Farbsehschwäche unterscheidbar bleiben.
 - **Börsensymbol suchen**: Importierte Wertpapiere kennen zunächst nur ihre ISIN und werden mit dem
   Kurs des letzten Kaufs bewertet. Bei der Position lässt sich das Symbol über den Namen bei
   Alpha Vantage suchen (US-Aktien an der US-Börse, sonst bevorzugt Xetra in Euro).

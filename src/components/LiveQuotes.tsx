@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Update } from '../App';
-import { ClassIcon, CLASS_COLOR, Icon } from './ui';
+import { CategoryIcon, CATEGORY_COLOR, Icon } from './ui';
 import { HoldingValuation, valueHolding } from '../lib/portfolio';
 import { metalChangePct } from '../lib/prices';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
-import { ASSET_CLASSES, AssetClass, CLASS_LABEL, Holding, METAL_LABEL, PortfolioState, quoteKey } from '../lib/types';
+import { CATEGORIES, Category, CATEGORY_LABEL, categoryOf, Holding, PortfolioState, quoteKey } from '../lib/types';
 
 type SortKey = 'name' | 'price' | 'change' | 'value' | 'gain';
 type Row = { h: Holding; v: HoldingValuation; changePct?: number; dayGain?: number };
@@ -23,7 +23,7 @@ interface Props {
   onAdd: () => void;
   onOpenHolding: (id: string) => void;
   /** class to filter by when the page opens, e.g. after a click on the pie chart */
-  initialFilter?: AssetClass | null;
+  initialFilter?: Category | null;
 }
 
 function ago(ms: number): string {
@@ -43,7 +43,7 @@ function changeHint(h: Holding, state: PortfolioState): string {
 }
 
 export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialFilter = null }: Props) {
-  const [filter, setFilter] = useState<AssetClass | null>(initialFilter);
+  const [filter, setFilter] = useState<Category | null>(initialFilter);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'value', dir: -1 });
   const [, tick] = useState(0);
   useEffect(() => {
@@ -88,7 +88,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
     return (
       <section className="card empty">
         <div className="empty-icons" aria-hidden="true">
-          <ClassIcon assetClass="metal" large /><ClassIcon assetClass="stock" large /><ClassIcon assetClass="crypto" large />
+          <CategoryIcon category="gold" large /><CategoryIcon category="stock" large /><CategoryIcon category="crypto" large />
         </div>
         <h2>Noch keine Positionen</h2>
         <p>Sobald du Positionen angelegt hast, siehst du hier ihre aktuellen Kurse.</p>
@@ -97,7 +97,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
     );
   }
 
-  const classes = ASSET_CLASSES.filter((c) => rows.some((r) => r.h.assetClass === c));
+  const classes = CATEGORIES.filter((c) => rows.some((r) => categoryOf(r.h) === c));
   const active = filter && classes.includes(filter) ? filter : null;
   const sortValue = (r: Row): number | string =>
     sort.key === 'name' ? r.h.name.toLocaleLowerCase('de')
@@ -106,7 +106,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
       : sort.key === 'value' ? r.v.value ?? -Infinity
       : r.v.gain ?? -Infinity;
   const shown = rows
-    .filter((r) => !active || r.h.assetClass === active)
+    .filter((r) => !active || categoryOf(r.h) === active)
     .sort((a, b) => {
       const [x, y] = [sortValue(a), sortValue(b)];
       return (typeof x === 'string' ? x.localeCompare(y as string, 'de') : x - (y as number)) * sort.dir;
@@ -143,7 +143,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
           </div>
         </div>
         <div className="live-day">
-          <div className="muted small">Heute{active ? ` · ${CLASS_LABEL[active]}` : ''}</div>
+          <div className="muted small">Heute{active ? ` · ${CATEGORY_LABEL[active]}` : ''}</div>
           {dayKnown > 0 ? (
             <div className={`live-day-value ${dayTotal > 0 ? 'pos' : dayTotal < 0 ? 'neg' : ''}`}>
               {fmtSignedEur(dayTotal)}{dayBase > 0 && <span className="small"> · {fmtPct(dayTotal / dayBase)}</span>}
@@ -163,9 +163,9 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
             </button>
             {classes.map((c) => (
               <button type="button" key={c} role="radio" aria-checked={active === c} className={`filter-chip ${active === c ? 'active' : ''}`}
-                style={{ '--c': CLASS_COLOR[c] } as React.CSSProperties} onClick={() => setFilter(c)}>
-                <span className="swatch" style={{ background: CLASS_COLOR[c] }} />
-                {CLASS_LABEL[c]} <span className="count">{rows.filter((r) => r.h.assetClass === c).length}</span>
+                style={{ '--c': CATEGORY_COLOR[c] } as React.CSSProperties} onClick={() => setFilter(c)}>
+                <span className="swatch" style={{ background: CATEGORY_COLOR[c] }} />
+                {CATEGORY_LABEL[c]} <span className="count">{rows.filter((r) => categoryOf(r.h) === c).length}</span>
               </button>
             ))}
           </div>
@@ -206,13 +206,13 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
                     onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpenHolding(h.id))}
                   >
                     <td>
-                      <div className="pos-name"><ClassIcon assetClass={h.assetClass} />
+                      <div className="pos-name"><CategoryIcon category={categoryOf(h)} />
                         <div>
                           {h.name}
                           <div className="muted small pos-sub">
-                            {CLASS_LABEL[h.assetClass]}
+                            {CATEGORY_LABEL[categoryOf(h)]}
                             {(h.symbol || h.isin) && ` · ${h.symbol ?? h.isin}`}
-                            {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+                            {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
                           </div>
                         </div>
                       </div>
@@ -236,8 +236,8 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
                     <td className="num">
                       {h.assetClass === 'metal' ? (
                         <>
-                          {fmtNum(v.quantity, 2)} g
-                          <div className="muted small">fein {fmtNum(v.fineGrams ?? 0, 2)} g</div>
+                          {fmtNum(v.quantity, 4)} g
+                          {(h.fineness ?? 1000) < 1000 && <div className="muted small">fein {fmtNum(v.fineGrams ?? 0, 4)} g</div>}
                         </>
                       ) : (
                         fmtNum(v.quantity, 8)

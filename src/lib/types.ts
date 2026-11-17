@@ -14,6 +14,34 @@ export const METAL_LABEL: Record<Metal, string> = {
   palladium: 'Palladium',
 };
 
+/**
+ * What the user sees as "kind of asset": finer than AssetClass, one colour each.
+ * The order is also the order in charts – chosen so neighbouring colours stay
+ * distinguishable, including for colour-blind readers (checked with the palette validator).
+ */
+export type Category = 'stock' | 'etf' | 'gold' | 'silver' | 'platinum' | 'palladium' | 'cash' | 'crypto';
+export const CATEGORIES: Category[] = ['stock', 'etf', 'gold', 'silver', 'platinum', 'palladium', 'cash', 'crypto'];
+export const CATEGORY_LABEL: Record<Category, string> = {
+  stock: 'Aktien',
+  etf: 'ETFs & Fonds',
+  gold: 'Gold',
+  silver: 'Silber',
+  platinum: 'Platin',
+  palladium: 'Palladium',
+  cash: 'Konten',
+  crypto: 'Krypto',
+};
+
+/** Names that are almost always funds: used when the import did not say what a security is. */
+const FUND_NAME_RE = /\bETF\b|\bETC\b|UCITS|MSCI|S&P\s?500|\((Acc|Dist)\)|Fonds|\bFunds?\b|ELTIF|iShares|Xtrackers|Vanguard|Amundi|Lyxor|SPDR|VanEck|Invesco|WisdomTree|Private Equity/i;
+
+export function categoryOf(h: Pick<Holding, 'assetClass' | 'metal' | 'securityType' | 'name'>): Category {
+  if (h.assetClass === 'metal') return h.metal ?? 'gold';
+  if (h.assetClass === 'crypto') return 'crypto';
+  if (h.assetClass === 'cash') return 'cash';
+  return (h.securityType ?? (FUND_NAME_RE.test(h.name) ? 'etf' : 'stock')) === 'etf' ? 'etf' : 'stock';
+}
+
 export const CLASS_LABEL: Record<AssetClass, string> = {
   metal: 'Edelmetalle',
   stock: 'Aktien & ETFs',
@@ -78,6 +106,8 @@ export interface Holding {
   coinId?: string;
   /** stock only: ISIN, e.g. from a bank import; identifies the security when no symbol is known */
   isin?: string;
+  /** stock only: share or fund/ETF; guessed from the name when missing */
+  securityType?: 'stock' | 'etf';
   /** cash only: account balance in EUR */
   balance?: number;
   /** cash only: the day the balance refers to, YYYY-MM-DD */

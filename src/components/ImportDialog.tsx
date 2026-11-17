@@ -1,17 +1,18 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Update } from '../App';
 import { decodeBytes } from '../lib/csv';
+import { isZip, readXlsx, XlsxError } from '../lib/xlsx';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import {
   applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, emptyBroker, FIELDS,
-  foldCashEvents, hasOnlyBrokenLots, ImportKind, KIND_LABEL, Mapping, matchHolding, missingFields, ParsedFile, parseFile, pendingList,
-  planTransactions, readPositions, readStatement, readTransactions,
+  foldCashEvents, hasOnlyBrokenLots, ImportKind, KIND_LABEL, Mapping, matchHolding, missingFields, ParsedFile, parseFile, parseRows, pendingList,
+  planTransactions, readMetalTransactions, readPositions, readStatement, readTransactions,
 } from '../lib/importer';
 import { PortfolioState } from '../lib/types';
 import { Dialog, Icon } from './ui';
 
 const NEW = '__new__';
-const KINDS: ImportKind[] = ['statement', 'positions', 'transactions'];
+const KINDS: ImportKind[] = ['statement', 'positions', 'transactions', 'metals'];
 const day = (iso?: string) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('de-DE') : '–');
 
 interface Loaded {
@@ -36,18 +37,23 @@ export function ImportDialog({ state, update, onClose, onDone }: {
   async function load(f: File) {
     setError('');
     try {
-      const file = parseFile(decodeBytes(await f.arrayBuffer()));
+      const buf = await f.arrayBuffer();
+      if (/\.xls$/i.test(f.name) && !isZip(buf)) {
+        setLoaded(null);
+        return setError('Das alte Excel-Format (.xls) wird nicht unterstützt. Bitte die Datei als .xlsx oder .csv speichern.');
+      }
+      const file = isZip(buf) ? parseRows(await readXlsx(buf)) : parseFile(decodeBytes(buf));
       if (file.header.length < 2 || file.rows.length === 0) {
         setLoaded(null);
-        return setError('In dieser Datei wurde keine Tabelle gefunden. Bitte eine CSV-Datei aus dem Online-Banking wählen (kein PDF).');
+        return setError('In dieser Datei wurde keine Tabelle gefunden. Bitte eine CSV- oder Excel-Datei (.xlsx) wählen, kein PDF.');
       }
       const k = detectKind(file.header, file.rows);
       setKind(k);
       setMapping(autoMap(file.header, k, file.rows));
       setLoaded({ fileName: f.name, file });
-    } catch {
+    } catch (e) {
       setLoaded(null);
-      setError('Die Datei konnte nicht gelesen werden.');
+      setError(e instanceof XlsxError ? e.message : 'Die Datei konnte nicht gelesen werden.');
     }
   }
 
@@ -68,9 +74,9 @@ export function ImportDialog({ state, update, onClose, onDone }: {
             onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) load(f); }}
           >
             <Icon.upload />
-            <strong>CSV-Datei hierher ziehen oder auswählen</strong>
-            <span className="muted small">Kontoumsätze, Depotbestand oder Wertpapier-Transaktionen</span>
-            <input ref={inputRef} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) load(f); e.target.value = ''; }} />
+            <strong>CSV- oder Excel-Datei hierher ziehen oder auswählen</strong>
+            <span className="muted small">Kontoumsätze, Depotbestand, Wertpapier- oder Edelmetall-Transaktionen</span>
+            <input ref={inputRef} type="file" accept=".csv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) load(f); e.target.value = ''; }} />
           </label>
           {error && <div className="field-error" role="alert">{error}</div>}
           <p className="muted small">
@@ -82,6 +88,7 @@ export function ImportDialog({ state, update, onClose, onDone }: {
               <li><strong>ING:</strong> im Internetbanking am Computer (nicht in der App). Girokonto: Umsätze → Export als CSV. Depot: Depotübersicht → Export.</li>
               <li><strong>Sparkasse:</strong> Online-Banking → Umsätze → Exportieren → „CSV-CAMT“. Die Datei enthält keinen Kontostand – den trägst du beim Import ein.</li>
               <li><strong>Trade Republic:</strong> App → Profil → Kontoauszüge → Transaktionsexport (CSV).</li>
+              <li><strong>Flexgold:</strong> Transaktionsverlauf als Excel-Datei (.xlsx) herunterladen.</li>
             </ul>
             <p className="muted small">
               Die Banken ändern ihre Exporte gelegentlich. Falls Spalten falsch erkannt werden, kannst du sie im nächsten Schritt selbst zuordnen.
@@ -157,7 +164,7 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
       ) : kind === 'positions' ? (
         <PositionsPreview file={file} mapping={mapping} state={state} onApply={onApply} />
       ) : (
-        <TransactionsPreview file={file} mapping={mapping} state={state} onApply={onApply} />
+        <TransactionsPreview key={kind} metals={kind === 'metals'} file={file} mapping={mapping} state={state} onApply={onApply} />
       )}
     </>
   );
@@ -293,8 +300,8 @@ const looksLikeTradeRepublic = (header: string[]) => {
   return h.includes('account_type') && h.includes('transaction_id') && h.includes('asset_class');
 };
 
-function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
-  const result = useMemo(() => readTransactions(file, mapping), [file, mapping]);
+function TransactionsPreview({ file, mapping, state, onApply, metals }: PreviewProps & { metals?: boolean }) {
+  const result = useMemo(() => (metals ? readMetalTransactions(file, mapping) : readTransactions(file, mapping)), [file, mapping, metals]);
   const { drafts, skipped, ignoredTypes, cash, cashEvents } = result;
   const [off, setOff] = useState<Set<string>>(new Set());
   const [replace, setReplace] = useState(false);
@@ -305,7 +312,7 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
   const knownTrades = chosen.reduce((s, p) => s + p.duplicates, 0);
 
   // Broker cash account: continued from earlier imports, so overlapping files add only new rows.
-  const [accountName, setAccountName] = useState(looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto');
+  const [accountName, setAccountName] = useState(result.accountName ?? (looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto'));
   const existingAccount = state.holdings.find((h) => h.assetClass === 'cash' && h.name.trim().toLowerCase() === accountName.trim().toLowerCase());
   const startBroker = existingAccount?.broker ?? emptyBroker();
   const folded = useMemo(() => foldCashEvents(startBroker, cashEvents), [startBroker, cashEvents]);
@@ -336,7 +343,7 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
       <div className="table-wrap">
         <table className="import-table">
           <thead>
-            <tr><th /><th>Wertpapier</th><th className="num">Neue Buchungen</th><th className="num">Neu investiert</th><th className="num">Letzter Kurs</th><th /></tr>
+            <tr><th /><th>{metals ? 'Edelmetall' : 'Wertpapier'}</th><th className="num">Neue Buchungen</th><th className="num">Neu investiert</th>{metals && <th className="num">Neu (Gramm)</th>}<th className="num">{metals ? 'Letzter Preis' : 'Letzter Kurs'}</th><th /></tr>
           </thead>
           <tbody>
             {plans.map(({ draft: d, holding, added, duplicates, replaced }) => {
@@ -349,7 +356,7 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
                   <td><input type="checkbox" checked={!off.has(d.key)} onChange={() => toggle(d.key)} aria-label={`${d.name} importieren`} /></td>
                   <td>
                     {d.name}
-                    <div className="muted small">{d.isin ?? 'ohne ISIN'}</div>
+                    <div className="muted small">{d.metal ? 'Feingewicht in Gramm' : d.isin ?? 'ohne ISIN'}</div>
                     {d.warnings.map((w) => <div key={w} className="warn-text">{w}</div>)}
                   </td>
                   <td className="num">
@@ -369,8 +376,9 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
                     )}
                   </td>
                   <td className="num">{fmtEur(buys.reduce((s, p) => s + p.totalCost, 0))}</td>
+                  {metals && <td className="num">{fmtNum(added.reduce((g, p) => g + (p.kind === 'sell' ? -p.quantity : p.quantity), 0), 4)} g</td>}
                   <td className="num">
-                    {d.lastPrice ? fmtEur(d.lastPrice.price) : '–'}
+                    {d.lastPrice ? `${fmtEur(d.lastPrice.price)}${d.metal ? '/g' : ''}` : '–'}
                     {d.lastPrice && <div className="muted small">{day(d.lastPrice.date)}</div>}
                   </td>
                   <td><span className={`tag ${tag[0]}`}>{tag[1]}</span></td>
@@ -400,8 +408,8 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
       )}
       {repaired.length > 0 && !replace && (
         <div className="banner warn">
-          {repaired.length === 1 ? 'Eine Position hat' : `${repaired.length} Positionen haben`} bisher nur Käufe ohne Kaufpreis (0 €) – vermutlich
-          aus einem fehlerhaften früheren Import: {repaired.map((p) => p.holding!.name).join(', ')}. Diese Käufe werden durch die aus der Datei ersetzt.
+          {repaired.length === 1 ? 'Eine Position stammt' : `${repaired.length} Positionen stammen`} bisher nur aus einem Depotbestand oder einem
+          fehlerhaften früheren Import: {repaired.map((p) => p.holding!.name).join(', ')}. Ihr Bestand wird durch die Käufe aus der Datei ersetzt.
           Alle anderen Positionen werden nur ergänzt.
         </div>
       )}
@@ -451,7 +459,7 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
         {skipped > 0 && `${skipped} Zeilen ohne Kauf oder Verkauf übersprungen`}
         {ignoredTypes.length > 0 && ` (${ignoredTypes.slice(0, 6).join(', ')})`}
         {skipped > 0 && '. '}
-        Dividenden und Zinsen werden nicht als Wertpapier-Buchungen übernommen.
+        {metals ? 'Ein- und Auszahlungen fließen nur ins Guthaben.' : 'Dividenden und Zinsen werden nicht als Wertpapier-Buchungen übernommen.'}
       </p>
       <div className="inline">
         <button type="button" className="primary" disabled={newTrades === 0 && !replace && !withAccount} onClick={() => {

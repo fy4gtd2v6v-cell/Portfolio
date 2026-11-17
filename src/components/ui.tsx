@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { AssetClass } from '../lib/types';
+import { AssetClass, Category } from '../lib/types';
+
+export const CATEGORY_COLOR: Record<Category, string> = {
+  stock: 'var(--k-stock)',
+  etf: 'var(--k-etf)',
+  gold: 'var(--k-gold)',
+  silver: 'var(--k-silver)',
+  platinum: 'var(--k-platinum)',
+  palladium: 'var(--k-palladium)',
+  cash: 'var(--k-cash)',
+  crypto: 'var(--k-crypto)',
+};
 
 export const CLASS_COLOR: Record<AssetClass, string> = {
   metal: 'var(--c-metal)',
@@ -20,6 +31,7 @@ export const Icon = {
   holdings: () => svg(<><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="3.5" cy="6" r="1" /><circle cx="3.5" cy="12" r="1" /><circle cx="3.5" cy="18" r="1" /></>),
   metals: () => svg(<><path d="M7 8h10l4 10H3L7 8z" /><path d="M9.5 8l1-3h3l1 3" /></>),
   settings: () => svg(<><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></>),
+  etf: () => svg(<><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5V12l6 6" /><path d="M12 12H3.5" /></>, 16),
   cash: () => svg(<><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M3 10h18" /><path d="M7 15h4" /></>, 16),
   upload: () => svg(<><path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>),
   plus: () => svg(<path d="M12 5v14M5 12h14" />),
@@ -36,6 +48,27 @@ export function ClassIcon({ assetClass, large }: { assetClass: AssetClass; large
   const Glyph = Icon[assetClass];
   return (
     <span className={`class-icon ${large ? 'large' : ''}`} style={{ '--c': CLASS_COLOR[assetClass] } as React.CSSProperties}>
+      <Glyph />
+    </span>
+  );
+}
+
+const CATEGORY_GLYPH: Record<Category, () => JSX.Element> = {
+  stock: Icon.stock,
+  etf: Icon.etf,
+  gold: Icon.metal,
+  silver: Icon.metal,
+  platinum: Icon.metal,
+  palladium: Icon.metal,
+  cash: Icon.cash,
+  crypto: Icon.crypto,
+};
+
+/** Tinted square with the symbol of a category; metals share the bar symbol and differ by colour and label. */
+export function CategoryIcon({ category, large }: { category: Category; large?: boolean }) {
+  const Glyph = CATEGORY_GLYPH[category];
+  return (
+    <span className={`class-icon ${large ? 'large' : ''}`} style={{ '--c': CATEGORY_COLOR[category] } as React.CSSProperties}>
       <Glyph />
     </span>
   );

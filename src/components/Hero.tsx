@@ -1,12 +1,12 @@
 import { fmtEur, fmtPct, fmtSignedEur } from '../lib/format';
 import { PortfolioSummary } from '../lib/portfolio';
-import { AssetClass, CLASS_LABEL } from '../lib/types';
-import { CLASS_COLOR, useCountUp } from './ui';
+import { Category, CATEGORY_LABEL } from '../lib/types';
+import { CATEGORY_COLOR, useCountUp } from './ui';
 
 const share = new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 });
 
 /** The headline block: total value, gain, invested and realized amounts, and a thin split bar by asset class. */
-export function Hero({ summary: s, emphasis }: { summary: PortfolioSummary; emphasis?: AssetClass | null }) {
+export function Hero({ summary: s, emphasis }: { summary: PortfolioSummary; emphasis?: Category | null }) {
   const total = useCountUp(s.totalValue);
   const gainClass = s.gain > 0 ? 'pos' : s.gain < 0 ? 'neg' : '';
   return (
@@ -33,10 +33,10 @@ export function Hero({ summary: s, emphasis }: { summary: PortfolioSummary; emph
         </div>
       </div>
       {s.totalValue > 0 && (
-        <div className="hero-split" role="img" aria-label={s.byClass.map((c) => `${CLASS_LABEL[c.assetClass]} ${share.format(c.value / s.totalValue)}`).join(', ')}>
-          {s.byClass.filter((c) => c.value > 0).map((c) => (
-            <span key={c.assetClass} className={emphasis && emphasis !== c.assetClass ? 'dim' : ''}
-              style={{ flexGrow: c.value, background: CLASS_COLOR[c.assetClass] }} />
+        <div className="hero-split" role="img" aria-label={s.byCategory.map((c) => `${CATEGORY_LABEL[c.category]} ${share.format(c.value / s.totalValue)}`).join(', ')}>
+          {s.byCategory.filter((c) => c.value > 0).map((c) => (
+            <span key={c.category} className={emphasis && emphasis !== c.category ? 'dim' : ''} title={CATEGORY_LABEL[c.category]}
+              style={{ flexGrow: c.value, background: CATEGORY_COLOR[c.category] }} />
           ))}
         </div>
       )}

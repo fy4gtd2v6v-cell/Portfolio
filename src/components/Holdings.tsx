@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ClassIcon, CLASS_COLOR, Icon } from './ui';
+import { CategoryIcon, CATEGORY_COLOR, ClassIcon, CLASS_COLOR, Icon } from './ui';
 import type { Update } from '../App';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
@@ -7,23 +7,30 @@ import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from 
 import { rankSymbolMatches, searchTerm } from '../lib/symbols';
 import { pendingList } from '../lib/importer';
 import {
-  ASSET_CLASSES, AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
+  ASSET_CLASSES, AssetClass, CATEGORIES, Category, CATEGORY_LABEL, categoryOf, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
 } from '../lib/types';
 import { toGrams, WeightUnit } from '../lib/units';
 
 const FINENESS_PRESETS = [999.9, 999, 916.7, 900, 835, 750, 585];
 
-type Filter = AssetClass | 'all';
+type Filter = Category | 'all';
 
-export function HoldingsView({ state, update, onAdd, onImport, focusId }: { state: PortfolioState; update: Update; onAdd: () => void; onImport: () => void; focusId?: string }) {
-  const [filter, setFilter] = useState<Filter>('all');
-  const classes = ASSET_CLASSES.filter((c) => state.holdings.some((h) => h.assetClass === c));
+export function HoldingsView({ state, update, onAdd, onImport, focusId, initialFilter }: {
+  state: PortfolioState;
+  update: Update;
+  onAdd: () => void;
+  onImport: () => void;
+  focusId?: string;
+  initialFilter?: Category | null;
+}) {
+  const [filter, setFilter] = useState<Filter>(initialFilter ?? 'all');
+  const classes = CATEGORIES.filter((c) => state.holdings.some((h) => categoryOf(h) === c));
   // A position opened from the overview must be visible, so jumping to one clears the filter.
   useEffect(() => {
     if (focusId) setFilter('all');
   }, [focusId]);
   const active: Filter = filter !== 'all' && !classes.includes(filter) ? 'all' : filter;
-  const shown = state.holdings.filter((h) => active === 'all' || h.assetClass === active);
+  const shown = state.holdings.filter((h) => active === 'all' || categoryOf(h) === active);
 
   return (
     <>
@@ -47,9 +54,9 @@ export function HoldingsView({ state, update, onAdd, onImport, focusId }: { stat
             </button>
             {classes.map((c) => (
               <button type="button" key={c} role="radio" aria-checked={active === c} className={`filter-chip ${active === c ? 'active' : ''}`}
-                style={{ '--c': CLASS_COLOR[c] } as React.CSSProperties} onClick={() => setFilter(c)}>
-                <span className="swatch" style={{ background: CLASS_COLOR[c] }} />
-                {CLASS_LABEL[c]} <span className="count">{state.holdings.filter((h) => h.assetClass === c).length}</span>
+                style={{ '--c': CATEGORY_COLOR[c] } as React.CSSProperties} onClick={() => setFilter(c)}>
+                <span className="swatch" style={{ background: CATEGORY_COLOR[c] }} />
+                {CATEGORY_LABEL[c]} <span className="count">{state.holdings.filter((h) => categoryOf(h) === c).length}</span>
               </button>
             ))}
           </div>
@@ -117,6 +124,7 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
   const [fineness, setFineness] = useState('999,9');
   const [symbol, setSymbol] = useState('');
   const [currency, setCurrency] = useState<Currency>('EUR');
+  const [securityType, setSecurityType] = useState<'stock' | 'etf'>('stock');
   const [coinId, setCoinId] = useState('');
   const [draft, setDraft] = useState(emptyDraft);
   const [balance, setBalance] = useState('');
@@ -145,6 +153,7 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
       if (!symbol.trim()) return setError('Bitte ein Symbol angeben, z. B. AAPL oder SAP.DEX.');
       h.symbol = symbol.trim().toUpperCase();
       h.currency = currency;
+      h.securityType = securityType;
       h.name ||= h.symbol;
     } else {
       if (!coinId.trim()) return setError('Bitte einen Coin auswählen oder die CoinGecko-ID eingeben, z. B. bitcoin.');
@@ -202,6 +211,13 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
               <span>Handelswährung</span>
               <select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
                 {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Art</span>
+              <select value={securityType} onChange={(e) => setSecurityType(e.target.value as 'stock' | 'etf')}>
+                <option value="stock">Aktie</option>
+                <option value="etf">ETF / Fonds</option>
               </select>
             </label>
             <label className="field">
@@ -373,15 +389,15 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
   }
 
   return (
-    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CLASS_COLOR[h.assetClass] } as React.CSSProperties}>
+    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CATEGORY_COLOR[categoryOf(h)] } as React.CSSProperties}>
       <div className="holding-head">
-        <ClassIcon assetClass={h.assetClass} />
+        <CategoryIcon category={categoryOf(h)} />
         <button className="link holding-title" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? '▾' : '▸'} {h.name}
         </button>
         <div className="muted small">
-          {CLASS_LABEL[h.assetClass]}
-          {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+          {CATEGORY_LABEL[categoryOf(h)]}
+          {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
           {h.symbol && ` · ${h.symbol} (${h.currency})`}
           {h.isin && ` · ${h.isin}`}
           {h.coinId && ` · ${h.coinId}`}
@@ -389,7 +405,9 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
         <div className="holding-summary">
           {v.closed ? 'vollständig verkauft' : (
             <>
-              {isMetal ? `${fmtNum(v.quantity, 2)} g (fein ${fmtNum(v.fineGrams ?? 0, 2)} g)` : `${fmtNum(v.quantity, 8)} Stück`}
+              {isMetal
+                ? (h.fineness ?? 1000) >= 1000 ? `${fmtNum(v.quantity, 4)} g` : `${fmtNum(v.quantity, 4)} g (fein ${fmtNum(v.fineGrams ?? 0, 4)} g)`
+                : `${fmtNum(v.quantity, 8)} Stück`}
               {' · '}{v.value !== undefined ? fmtEur(v.value) : 'kein Kurs'}
             </>
           )}
@@ -417,7 +435,7 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
                       {p.kind === 'sell' ? 'Verkauf' : 'Kauf'}
                       {p.note && <span className="tag trade-note">{p.note}</span>}
                     </td>
-                    <td className="num">{fmtNum(p.quantity, isMetal ? 2 : 8)}{isMetal && ' g'}</td>
+                    <td className="num">{fmtNum(p.quantity, isMetal ? 4 : 8)}{isMetal && ' g'}</td>
                     <td className="num">{fmtEur(p.price ?? p.totalCost / p.quantity)}</td>
                     <td className="num">{p.fee ? fmtEur(p.fee) : <span className="muted">–</span>}</td>
                     <td className="num strong">{fmtEur(p.totalCost)}</td>
@@ -449,6 +467,16 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
             <PurchaseFields draft={draft} set={setDraft} isMetal={isMetal} />
             <button type="submit">{draft.kind === 'sell' ? 'Verkauf erfassen' : 'Kauf erfassen'}</button>
           </form>
+
+          {h.assetClass === 'stock' && (
+            <label className="field type-field">
+              <span>Art</span>
+              <select value={categoryOf(h)} onChange={(e) => setHolding((x) => ({ ...x, securityType: e.target.value as 'stock' | 'etf' }))}>
+                <option value="stock">Aktie</option>
+                <option value="etf">ETF / Fonds</option>
+              </select>
+            </label>
+          )}
 
           {h.assetClass === 'stock' && (
             <SymbolEditor holding={h} apiKey={state.settings.alphaVantageKey} onSave={(symbol, currency) =>
@@ -601,9 +629,9 @@ function CashCard({ holding: h, update, focused }: { holding: Holding; update: U
   }
 
   return (
-    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CLASS_COLOR.cash } as React.CSSProperties}>
+    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CATEGORY_COLOR.cash } as React.CSSProperties}>
       <div className="holding-head">
-        <ClassIcon assetClass="cash" />
+        <CategoryIcon category="cash" />
         <button className="link holding-title" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? '▾' : '▸'} {h.name}
         </button>
