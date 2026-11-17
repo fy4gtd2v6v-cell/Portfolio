@@ -586,3 +586,5 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 .check-row .amount { margin-left: auto; font-weight: 620; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .type-field { max-width: 260px; margin-top: 14px; }
+
+.depot-field { max-width: 420px; }

@@ -4,7 +4,7 @@ import { decodeBytes } from '../lib/csv';
 import { isZip, readXlsx, XlsxError } from '../lib/xlsx';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import {
-  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, emptyBroker, FIELDS,
+  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, detectProvider, emptyBroker, FIELDS,
   foldCashEvents, hasOnlyBrokenLots, ImportKind, KIND_LABEL, Mapping, matchHolding, missingFields, ParsedFile, parseFile, parseRows, pendingList,
   planTransactions, readMetalTransactions, readPositions, readStatement, readTransactions,
 } from '../lib/importer';
@@ -118,6 +118,8 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
 }) {
   const { file, fileName } = loaded;
   const missing = missingFields(kind, mapping);
+  const [depot, setDepot] = useState(detectProvider(file) ?? '');
+  const account = depot.trim() || undefined;
   const sample = file.rows[0] ?? [];
   // Opened automatically when something is missing, but never closed under the user's hands.
   const [showMapping, setShowMapping] = useState(missing.length > 0);
@@ -139,6 +141,14 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
           ))}
         </div>
       </div>
+
+      {kind !== 'statement' && (
+        <label className="field depot-field">
+          <span>Depot / Anbieter</span>
+          <input placeholder="z. B. ING, Trade Republic, Flexgold" value={depot} onChange={(e) => setDepot(e.target.value)} />
+          <span className="muted small">Positionen werden nur innerhalb desselben Depots abgeglichen – dasselbe Wertpapier in zwei Depots bleibt getrennt.</span>
+        </label>
+      )}
 
       <details open={mappingOpen} onToggle={(e) => setShowMapping((e.currentTarget as HTMLDetailsElement).open)}>
         <summary>Spalten zuordnen{missing.length === 0 && ' (automatisch erkannt)'}</summary>
@@ -162,9 +172,9 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
       ) : kind === 'statement' ? (
         <StatementPreview file={file} mapping={mapping} state={state} onApply={onApply} />
       ) : kind === 'positions' ? (
-        <PositionsPreview file={file} mapping={mapping} state={state} onApply={onApply} />
+        <PositionsPreview key={account} account={account} file={file} mapping={mapping} state={state} onApply={onApply} />
       ) : (
-        <TransactionsPreview key={kind} metals={kind === 'metals'} file={file} mapping={mapping} state={state} onApply={onApply} />
+        <TransactionsPreview key={`${kind}|${account}`} account={account} metals={kind === 'metals'} file={file} mapping={mapping} state={state} onApply={onApply} />
       )}
     </>
   );
@@ -172,7 +182,7 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
 
 /** The change is a function of the then-current state, so prices fetched in the meantime are not lost. */
 type Apply = (change: (s: PortfolioState) => PortfolioState, message: string) => void;
-type PreviewProps = { file: ParsedFile; mapping: Mapping; state: PortfolioState; onApply: Apply };
+type PreviewProps = { file: ParsedFile; mapping: Mapping; state: PortfolioState; onApply: Apply; account?: string };
 
 function StatementPreview({ file, mapping, state, onApply }: PreviewProps) {
   const r = useMemo(() => readStatement(file, mapping), [file, mapping]);
@@ -241,7 +251,7 @@ function StatementPreview({ file, mapping, state, onApply }: PreviewProps) {
   );
 }
 
-function PositionsPreview({ file, mapping, state, onApply }: PreviewProps) {
+function PositionsPreview({ file, mapping, state, onApply, account }: PreviewProps) {
   const { drafts, skipped } = useMemo(() => readPositions(file, mapping), [file, mapping]);
   const [off, setOff] = useState<Set<string>>(new Set());
   const chosen = drafts.filter((d) => !off.has(d.key));
@@ -261,7 +271,7 @@ function PositionsPreview({ file, mapping, state, onApply }: PreviewProps) {
           </thead>
           <tbody>
             {drafts.map((d) => {
-              const match = matchHolding(state, d);
+              const match = matchHolding(state, d, account, true);
               return (
                 <tr key={d.key}>
                   <td><input type="checkbox" checked={!off.has(d.key)} onChange={() => toggle(d.key)} aria-label={`${d.name} importieren`} /></td>
@@ -287,7 +297,7 @@ function PositionsPreview({ file, mapping, state, onApply }: PreviewProps) {
       </p>
       <div className="inline">
         <button type="button" className="primary" disabled={chosen.length === 0} onClick={() =>
-          onApply((s) => applyPositions(s, chosen, today()), `${chosen.length} Depotposition${chosen.length === 1 ? '' : 'en'} importiert.`)
+          onApply((s) => applyPositions(s, chosen, today(), account), `${chosen.length} Depotposition${chosen.length === 1 ? '' : 'en'}${account ? ` (${account})` : ''} importiert.`)
         }>{chosen.length} Position{chosen.length === 1 ? '' : 'en'} importieren</button>
       </div>
     </>
@@ -300,19 +310,19 @@ const looksLikeTradeRepublic = (header: string[]) => {
   return h.includes('account_type') && h.includes('transaction_id') && h.includes('asset_class');
 };
 
-function TransactionsPreview({ file, mapping, state, onApply, metals }: PreviewProps & { metals?: boolean }) {
+function TransactionsPreview({ file, mapping, state, onApply, metals, account }: PreviewProps & { metals?: boolean }) {
   const result = useMemo(() => (metals ? readMetalTransactions(file, mapping) : readTransactions(file, mapping)), [file, mapping, metals]);
   const { drafts, skipped, ignoredTypes, cash, cashEvents } = result;
   const [off, setOff] = useState<Set<string>>(new Set());
   const [replace, setReplace] = useState(false);
   const toggle = (key: string) => setOff((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  const plans = useMemo(() => planTransactions(state, drafts, replace), [state, drafts, replace]);
+  const plans = useMemo(() => planTransactions(state, drafts, replace, account), [state, drafts, replace, account]);
   const chosen = plans.filter((p) => !off.has(p.draft.key));
   const newTrades = chosen.reduce((s, p) => s + p.added.length, 0);
   const knownTrades = chosen.reduce((s, p) => s + p.duplicates, 0);
 
   // Broker cash account: continued from earlier imports, so overlapping files add only new rows.
-  const [accountName, setAccountName] = useState(result.accountName ?? (looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto'));
+  const [accountName, setAccountName] = useState(account ?? result.accountName ?? (looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto'));
   const existingAccount = state.holdings.find((h) => h.assetClass === 'cash' && h.name.trim().toLowerCase() === accountName.trim().toLowerCase());
   const startBroker = existingAccount?.broker ?? emptyBroker();
   const folded = useMemo(() => foldCashEvents(startBroker, cashEvents), [startBroker, cashEvents]);
@@ -335,6 +345,8 @@ function TransactionsPreview({ file, mapping, state, onApply, metals }: PreviewP
 
   const addedInvested = chosen.reduce((s, p) => s + p.added.filter((t) => t.kind !== 'sell').reduce((x, t) => x + t.totalCost, 0), 0);
   const anyExisting = plans.some((p) => p.holding);
+  // Positions imported before depots were recorded: this import can label them.
+  const unlabeled = account ? chosen.filter((p) => p.holding && !p.holding.account).length : 0;
   const repaired = plans.filter((p) => p.replaced && p.holding && hasOnlyBrokenLots(p.holding));
 
   return (
@@ -462,18 +474,23 @@ function TransactionsPreview({ file, mapping, state, onApply, metals }: PreviewP
         {metals ? 'Ein- und Auszahlungen fließen nur ins Guthaben.' : 'Dividenden und Zinsen werden nicht als Wertpapier-Buchungen übernommen.'}
       </p>
       <div className="inline">
-        <button type="button" className="primary" disabled={newTrades === 0 && !replace && !withAccount} onClick={() => {
+        <button type="button" className="primary" disabled={newTrades === 0 && !replace && !withAccount && unlabeled === 0} onClick={() => {
           const drafts = chosen.map((p) => p.draft);
-          const account = withAccount ? { accountId: existingAccount?.id, name: accountName.trim(), events: cashEvents, withPending: takePending } : undefined;
-          const parts = [`${newTrades} neue Buchung${newTrades === 1 ? '' : 'en'} importiert`];
+          const cash = withAccount ? { accountId: existingAccount?.id, name: accountName.trim(), events: cashEvents, withPending: takePending } : undefined;
+          const parts = [`${newTrades} neue Buchung${newTrades === 1 ? '' : 'en'}${account ? ` (${account})` : ''} importiert`];
           if (knownTrades > 0) parts.push(`${knownTrades} schon vorhanden`);
-          if (account) parts.push(`Konto „${account.name}“: ${fmtEur(newBalance)}`);
+          if (unlabeled > 0) parts.push(`${unlabeled} Position${unlabeled === 1 ? '' : 'en'} dem Depot „${account}“ zugeordnet`);
+          if (cash) parts.push(`Konto „${cash.name}“: ${fmtEur(newBalance)}`);
           onApply((s) => {
-            const next = applyTransactions(s, drafts, replace);
-            return account ? applyBrokerAccount(next, account) : next;
+            const next = applyTransactions(s, drafts, replace, account);
+            return cash ? applyBrokerAccount(next, cash) : next;
           }, parts.join(' · ') + '.');
-        }}>{newTrades === 0 && !replace ? (withAccount ? 'Nur Guthaben aktualisieren' : 'Nichts Neues') : 'Importieren'}</button>
-        {newTrades === 0 && !replace && !withAccount && <span className="muted small">Alles aus dieser Datei ist schon importiert.</span>}
+        }}>{newTrades === 0 && !replace ? (withAccount ? 'Nur Guthaben aktualisieren' : unlabeled > 0 ? 'Depot zuordnen' : 'Nichts Neues') : 'Importieren'}</button>
+        {newTrades === 0 && !replace && !withAccount && (
+          <span className="muted small">
+            {unlabeled > 0 ? `Keine neuen Buchungen. ${unlabeled} bestehende Position${unlabeled === 1 ? '' : 'en'} bekommen das Depot „${account}“.` : 'Alles aus dieser Datei ist schon importiert.'}
+          </span>
+        )}
       </div>
     </>
   );

@@ -211,6 +211,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
                           {h.name}
                           <div className="muted small pos-sub">
                             {CATEGORY_LABEL[categoryOf(h)]}
+                            {h.account && ` · ${h.account}`}
                             {(h.symbol || h.isin) && ` · ${h.symbol ?? h.isin}`}
                             {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
                           </div>

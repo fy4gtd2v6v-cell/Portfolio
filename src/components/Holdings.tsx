@@ -397,6 +397,7 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
         </button>
         <div className="muted small">
           {CATEGORY_LABEL[categoryOf(h)]}
+          {h.account && ` · ${h.account}`}
           {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
           {h.symbol && ` · ${h.symbol} (${h.currency})`}
           {h.isin && ` · ${h.isin}`}

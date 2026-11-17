@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, matchHolding, missingFields,
+  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, detectProvider, matchHolding, missingFields,
   parseFile, parseRows, pendingList, planTransactions, readMetalTransactions, readPositions, readStatement, readTransactions, transactionKind,
 } from './importer';
 import { buildXlsx, sheetFiles } from './xlsxTestFiles';
 import { readXlsx } from './xlsx';
 import type { TransactionDraft } from './importer';
+import { decodeBytes } from './csv';
 import { summarize, valueHolding } from './portfolio';
 import { emptyState } from './types';
 
@@ -485,5 +486,58 @@ describe('Trade Republic asset class', () => {
     const r = readTransactions(f, autoMap(f.header, 'transactions', f.rows));
     expect(r.drafts.find((d) => d.isin === 'US0937121079')!.securityType).toBe('stock');
     expect(r.drafts.find((d) => d.isin === 'LU3176111881')!.securityType).toBe('etf');
+  });
+});
+
+describe('ING depot overview and separate depots', () => {
+  // Layout of ING's "Depotübersicht" CSV (Windows-1252, preamble, padded names, summary row). Personal data replaced.
+  const ING = [
+    'Depotübersicht vom 18.11.2026 00:19',
+    'Kunde;Max Mustermann',
+    '',
+    'Depotnummer;0000000000',
+    '',
+    'ISIN;Wertpapiername;Stück/Nominale;Einheitskennzeichen;Einstandskurs;Währung;Einstandswert;Währung;Bewertungskurs;Währung;Zeit;Handelsplatz;Kurswert;Währung;Gewinn/Verlust;Währung;Gewinn/Verlust (%)',
+    'US0937121079;BLOOM ENERGY A   DL-,0001;1;Stück;246,50;EUR;246,50;EUR;158,00;EUR;17.11.2026;Direkthandel;158,00;EUR;-88,50;EUR;-35,90%',
+    'DE000ENER6Y0;SIEMENS ENERGY AG NA O.N.;2,0001;Stück;149,9925;EUR;300,00;EUR;125,98;EUR;17.11.2026;Direkthandel;251,97;EUR;-48,03;EUR;-16,01%',
+    '"";;;;;Depot-Gesamtwert;404,50;EUR;;;;;409,97;EUR;5,47;EUR;1,35%',
+  ].join('\r\n');
+  const bytes = new Uint8Array([...ING].map((ch) => ({ ü: 0xfc, ä: 0xe4, ö: 0xf6 } as Record<string, number>)[ch] ?? ch.charCodeAt(0)));
+  const file = parseFile(decodeBytes(bytes.buffer));
+  const ingDrafts = readPositions(file, autoMap(file.header, 'positions', file.rows)).drafts;
+  const tr = parseFile(TR);
+  const trDrafts = readTransactions(tr, autoMap(tr.header, 'transactions', tr.rows)).drafts;
+
+  it('reads the ING file: provider, clean names, cost, price and price date', () => {
+    expect(detectKind(file.header, file.rows)).toBe('positions');
+    expect(detectProvider(file)).toBe('ING');
+    expect(detectProvider(tr)).toBe('Trade Republic');
+    expect(ingDrafts.map((d) => [d.name, d.quantity, d.cost, d.price, d.priceDate])).toEqual([
+      ['BLOOM ENERGY A DL-,0001', 1, 246.5, 158, '2026-11-17'],
+      ['SIEMENS ENERGY AG NA O.N.', 2.0001, 300, 125.98, '2026-11-17'],
+    ]);
+  });
+
+  it('keeps the same share in two depots apart, also next to positions imported before depots existed', () => {
+    // Trade Republic history imported by an earlier version: no depot recorded.
+    let state = applyTransactions(emptyState(), trDrafts);
+    state = applyPositions(state, ingDrafts, '2026-11-18', 'ING');
+    const blooms = state.holdings.filter((h) => h.isin === 'US0937121079');
+    expect(blooms.map((h) => [h.account, h.purchases.length])).toEqual([[undefined, 2], ['ING', 1]]);
+    // Both are valued with the newer of the two prices.
+    expect(state.quotes['isin:US0937121079']).toMatchObject({ eurPrice: 158, updatedAt: '2026-11-17T12:00:00.000Z' });
+    // Re-importing Trade Republic claims the old position (and records its depot) instead of creating a third one.
+    state = applyTransactions(state, trDrafts, false, 'Trade Republic');
+    expect(state.holdings.filter((h) => h.isin === 'US0937121079').map((h) => [h.account, h.purchases.length])).toEqual([['Trade Republic', 2], ['ING', 1]]);
+    // A newer ING file updates only the ING position.
+    state = applyPositions(state, [{ ...ingDrafts[0], quantity: 3, cost: 700 }], '2026-12-01', 'ING');
+    const after = state.holdings.filter((h) => h.isin === 'US0937121079');
+    expect(after.map((h) => [h.account, valueHolding(h, state).quantity])).toEqual([['Trade Republic', 0.470221], ['ING', 3]]);
+  });
+
+  it('never lets a depot snapshot overwrite a trade history without depot', () => {
+    const state = applyTransactions(emptyState(), trDrafts);
+    expect(matchHolding(state, ingDrafts[0], 'ING', true)).toBeUndefined();
+    expect(matchHolding(state, ingDrafts[0], 'Trade Republic', false)?.isin).toBe('US0937121079');
   });
 });
