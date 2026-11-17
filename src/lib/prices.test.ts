@@ -72,7 +72,10 @@ describe('refreshQuotes', () => {
     s.settings.alphaVantageKey = '';
     const f = mockFetch({ 'simple/price': { bitcoin: { eur: 1 } }, frankfurter: { rates: { USD: 1 } } });
     const r = await refreshQuotes(s, { f, stockDelayMs: 0, now });
-    expect(r.errors[0]).toMatch(/API-Key/);
+    expect(r.errors).toEqual([]);
+    expect(r.missingStockKey).toBe(2);
+    expect(f.calls.some((c) => c.includes('alphavantage'))).toBe(false);
+    expect(r.updated).toBe(1); // crypto still works
   });
 });
 

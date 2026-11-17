@@ -181,9 +181,16 @@ function ApiKeys({ state, update, encrypted }: { state: PortfolioState; update: 
         Die Keys werden nur in diesem Browser gespeichert{encrypted ? ' (verschlüsselt)' : ''} und sind nicht im Export enthalten.
       </p>
       <label className="field">
-        <span>Alpha Vantage (Aktien & ETFs) – kostenlos unter alphavantage.co, 25 Abfragen/Tag</span>
+        <span>Alpha Vantage (Aktien & ETFs) – kostenlos, 25 Abfragen/Tag</span>
         <input type="password" autoComplete="off" value={state.settings.alphaVantageKey} onChange={(e) => setKey('alphaVantageKey', e.target.value)} />
       </label>
+      {!state.settings.alphaVantageKey && (
+        <p className="muted small">
+          Noch kein Key? Auf <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener noreferrer">alphavantage.co/support</a> E-Mail
+          angeben, „Get free API key“ tippen und den angezeigten Key hier einfügen. Danach „Kurse aktualisieren“ – das Börsensymbol einer
+          Position lässt sich dann auch über die Suche finden.
+        </p>
+      )}
       <label className="field">
         <span>CoinGecko Demo-Key (Krypto) – optional, funktioniert auch ohne</span>
         <input type="password" autoComplete="off" value={state.settings.coingeckoKey} onChange={(e) => setKey('coingeckoKey', e.target.value)} />
