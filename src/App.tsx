@@ -14,7 +14,7 @@ import { today } from './lib/format';
 import { withSnapshot } from './lib/portfolio';
 import { refreshQuotes } from './lib/prices';
 import { clearStored, readStored, saveState } from './lib/storage';
-import { AssetClass, emptyState, PortfolioState } from './lib/types';
+import { Category, emptyState, PortfolioState } from './lib/types';
 
 type Tab = 'home' | 'live' | 'holdings' | 'metals' | 'settings';
 const TABS: [Tab, string, () => JSX.Element][] = [
@@ -86,7 +86,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
   const [vault, setVault] = useState<Vault | null>(initialVault);
   const [recoveryCode, setRecoveryCode] = useState<string | undefined>(initialRecoveryCode);
   const [tab, setTab] = useState<Tab>('home');
-  const [classFilter, setClassFilter] = useState<AssetClass | null>(null);
+  const [classFilter, setClassFilter] = useState<Category | null>(null);
   const [adding, setAdding] = useState(false);
   const [focusId, setFocusId] = useState<string | undefined>();
   const closeAdd = useCallback(() => setAdding(false), []);
@@ -169,6 +169,10 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
     (h) => (h.assetClass === 'crypto' && !!h.coinId) || (h.assetClass === 'metal' && state.settings.metalMode !== 'manual'),
   );
   const autoOn = state.settings.autoRefresh && autoEligible;
+  // What the automatic refresh has to fetch. When it changes – e.g. a new coin or metal after an import – fetch right away.
+  const autoTargets = [...new Set(state.holdings.flatMap((h) =>
+    h.assetClass === 'crypto' && h.coinId ? [`c:${h.coinId}`] : h.assetClass === 'metal' && h.metal && state.settings.metalMode !== 'manual' ? [`m:${h.metal}`] : [],
+  ))].sort().join(',');
   useEffect(() => {
     if (!autoOn) return;
     let last = 0;
@@ -184,7 +188,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       window.clearInterval(id);
       document.removeEventListener('visibilitychange', run);
     };
-  }, [autoOn, loadPrices]);
+  }, [autoOn, autoTargets, loadPrices]);
 
   const hasLive = state.holdings.some(
     (h) => (h.assetClass === 'stock' && !!h.symbol) || (h.assetClass === 'crypto' && !!h.coinId) || (h.assetClass === 'metal' && state.settings.metalMode !== 'manual'),
@@ -239,13 +243,13 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       <main>
         {tab === 'home' && (
           <Home state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding}
-            onOpenClass={(c) => { setClassFilter(c); setTab('live'); }} />
+            onOpenCategory={(c) => { setClassFilter(c); setFocusId(undefined); setTab(c === 'cash' ? 'holdings' : 'live'); }} />
         )}
         {tab === 'live' && (
           <LiveQuotes state={state} update={update} live={{ lastAt: lastLive.at, error: lastLive.error, busy: refreshing } satisfies LiveStatus}
             onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />
         )}
-        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} onImport={() => setImporting(true)} focusId={focusId} />}
+        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} onImport={() => setImporting(true)} focusId={focusId} initialFilter={classFilter} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
       </main>

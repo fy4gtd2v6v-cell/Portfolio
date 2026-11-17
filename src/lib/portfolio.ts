@@ -1,4 +1,4 @@
-import { ASSET_CLASSES, AssetClass, Holding, PortfolioState, Purchase, quoteKey, Snapshot } from './types';
+import { ASSET_CLASSES, AssetClass, CATEGORIES, Category, categoryOf, Holding, PortfolioState, Purchase, quoteKey, Snapshot } from './types';
 import { fineGrams } from './units';
 
 const EPS = 1e-9;
@@ -127,6 +127,13 @@ export interface ClassSummary {
   count: number;
 }
 
+export interface CategorySummary {
+  category: Category;
+  value: number;
+  cost: number;
+  count: number;
+}
+
 export interface PortfolioSummary {
   totalValue: number;
   /** cost of the holdings that have a price, so gain compares like with like */
@@ -140,6 +147,8 @@ export interface PortfolioSummary {
   gainPct?: number;
   realized: number;
   byClass: ClassSummary[];
+  /** the same, split finer: shares vs. funds, each metal on its own */
+  byCategory: CategorySummary[];
   /** open positions without a price */
   unpriced: Holding[];
 }
@@ -155,10 +164,17 @@ export function summarize(state: PortfolioState): PortfolioSummary {
   let cashValue = 0;
   const unpriced: Holding[] = [];
 
+  const byCategory = new Map<Category, CategorySummary>();
   for (const h of state.holdings) {
     const v = valueHolding(h, state);
     realized += v.realized;
     if (v.closed) continue;
+    const cat = categoryOf(h);
+    const k = byCategory.get(cat) ?? { category: cat, value: 0, cost: 0, count: 0 };
+    k.count += 1;
+    k.value += v.value ?? 0;
+    if (h.assetClass !== 'cash') k.cost += v.cost;
+    byCategory.set(cat, k);
     const c = byClass.get(h.assetClass) ?? { assetClass: h.assetClass, value: 0, cost: 0, count: 0 };
     c.count += 1;
     c.cost += v.cost;
@@ -190,6 +206,7 @@ export function summarize(state: PortfolioState): PortfolioSummary {
     gainPct: pricedCost > 0 ? gain / pricedCost : undefined,
     realized,
     byClass: CLASS_ORDER.filter((c) => byClass.has(c)).map((c) => byClass.get(c)!),
+    byCategory: CATEGORIES.filter((c) => byCategory.has(c)).map((c) => byCategory.get(c)!),
     unpriced,
   };
 }

@@ -13,10 +13,18 @@
   --brand: #3b5bdb;
   --brand-grad: linear-gradient(135deg, #2563c9 0%, #5b47d6 100%);
   --brand-soft: #e9edfc;
-  --c-metal: #eda100;
-  --c-stock: #2a78d6;
-  --c-crypto: #1baf7a;
-  --c-cash: #6250d6;
+  --k-stock: #2a78d6;
+  --k-etf: #e87ba4;
+  --k-gold: #eda100;
+  --k-silver: #6250d6;
+  --k-platinum: #008300;
+  --k-palladium: #e34948;
+  --k-cash: #1baf7a;
+  --k-crypto: #eb6834;
+  --c-metal: var(--k-gold);
+  --c-stock: var(--k-stock);
+  --c-crypto: var(--k-crypto);
+  --c-cash: var(--k-cash);
   --btn-bg: #1c1b16;
   --btn-fg: #fdfcfa;
   --pos: #0b7a3e;
@@ -54,11 +62,18 @@
     --brand: #6f86f0;
     --brand-grad: linear-gradient(135deg, #2f6fd6 0%, #6a55e0 100%);
     --brand-soft: #1f2440;
-    --c-metal: #c98500;
-    --c-stock: #3987e5;
-    --c-crypto: #199e70;
-  --c-cash: #9085e9;
-    --c-cash: #9085e9;
+    --k-stock: #3987e5;
+    --k-etf: #d55181;
+    --k-gold: #c98500;
+    --k-silver: #9085e9;
+    --k-platinum: #0ca30c;
+    --k-palladium: #e66767;
+    --k-cash: #199e70;
+    --k-crypto: #d95926;
+    --c-metal: var(--k-gold);
+    --c-stock: var(--k-stock);
+    --c-crypto: var(--k-crypto);
+    --c-cash: var(--k-cash);
     --btn-bg: #f0efec;
     --btn-fg: #16150f;
     --pos: #4cc27e;
@@ -95,9 +110,18 @@
   --brand: #6f86f0;
   --brand-grad: linear-gradient(135deg, #2f6fd6 0%, #6a55e0 100%);
   --brand-soft: #1f2440;
-  --c-metal: #c98500;
-  --c-stock: #3987e5;
-  --c-crypto: #199e70;
+  --k-stock: #3987e5;
+  --k-etf: #d55181;
+  --k-gold: #c98500;
+  --k-silver: #9085e9;
+  --k-platinum: #0ca30c;
+  --k-palladium: #e66767;
+  --k-cash: #199e70;
+  --k-crypto: #d95926;
+  --c-metal: var(--k-gold);
+  --c-stock: var(--k-stock);
+  --c-crypto: var(--k-crypto);
+  --c-cash: var(--k-cash);
   --btn-bg: #f0efec;
   --btn-fg: #16150f;
   --pos: #4cc27e;
@@ -560,3 +584,5 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 .check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin: 8px 0; cursor: pointer; }
 .check-row input { width: auto; margin-top: 4px; accent-color: var(--brand); }
 .check-row .amount { margin-left: auto; font-weight: 620; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.type-field { max-width: 260px; margin-top: 14px; }

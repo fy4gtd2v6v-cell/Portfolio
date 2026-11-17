@@ -6,15 +6,17 @@
  * titles (many known spellings), and the user can correct the mapping.
  */
 import { normalizeHeader, parseAmount, parseCsv, parseDate } from './csv';
-import { BrokerAccount, Holding, newId, PortfolioState, Purchase, quoteKey } from './types';
+import { BrokerAccount, Holding, Metal, METAL_LABEL, newId, PortfolioState, Purchase, quoteKey } from './types';
+import { GRAMS_PER_TROY_OUNCE } from './units';
 
 /** What a file contains. */
-export type ImportKind = 'statement' | 'positions' | 'transactions';
+export type ImportKind = 'statement' | 'positions' | 'transactions' | 'metals';
 
 export const KIND_LABEL: Record<ImportKind, string> = {
   statement: 'Kontoumsätze',
   positions: 'Depotbestand',
   transactions: 'Wertpapier-Transaktionen',
+  metals: 'Edelmetall-Transaktionen',
 };
 
 export interface FieldDef {
@@ -56,6 +58,16 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'tax', label: 'Steuern', names: ['Steuer', 'Steuern', 'Tax', 'Taxes', 'Quellensteuer'] },
     { key: 'note', label: 'Beschreibung', names: ['Beschreibung', 'Description', 'Notiz', 'Verwendungszweck', 'Buchungstext'] },
     { key: 'ref', label: 'Buchungsnummer', names: ['Transaction ID', 'Transaktions-ID', 'Transaktionsnummer', 'Buchungsnummer', 'Auftragsnummer', 'Ordernummer', 'Order ID', 'Referenznummer'] },
+    { key: 'assetType', label: 'Wertpapierart', names: ['asset_class', 'Assetklasse', 'Wertpapierart', 'Gattung', 'Instrument type', 'Security type'] },
+  ],
+  metals: [
+    { key: 'date', label: 'Datum', names: ['Valutadatum', 'Valuta', 'Datum', 'Date', 'Buchungstag', 'Buchungsdatum', 'Ausführungsdatum'] },
+    { key: 'title', label: 'Art (z. B. Sparplan Gold)', names: ['Title', 'Titel', 'Bezeichnung', 'Transaktionsart', 'Transaktion', 'Art', 'Typ', 'Type', 'Beschreibung'] },
+    { key: 'amount', label: 'Menge / Betrag', names: ['Menge/Betrag', 'Menge', 'Betrag', 'Amount', 'Quantity', 'Gewicht'] },
+    { key: 'unit', label: 'Einheit (g oder EUR)', names: ['Einheit', 'Unit', 'Mengeneinheit'] },
+    { key: 'price', label: 'Kurs', names: ['Kurs', 'Preis', 'Price', 'Grammpreis'] },
+    { key: 'priceUnit', label: 'Einheit des Kurses', names: ['Einheit', 'Kurseinheit', 'Price unit'] },
+    { key: 'ref', label: 'Transaktions-ID', names: ['Transaktions ID', 'Transaktions-ID', 'Transaction ID', 'Transaktionsnummer', 'Buchungsnummer', 'Auftragsnummer'] },
   ],
 };
 
@@ -64,6 +76,7 @@ const REQUIRED: Record<ImportKind, string[]> = {
   statement: ['date', 'amount|balance'],
   positions: ['name|isin', 'quantity'],
   transactions: ['date', 'type', 'name|isin', 'quantity'],
+  metals: ['date', 'title', 'amount', 'unit'],
 };
 
 /** field key → column index, or -1 when not assigned */
@@ -82,7 +95,11 @@ const ALL_NAMES = new Set(
 
 /** Finds the table inside the file: the title row is the one that looks most like column titles. */
 export function parseFile(text: string): ParsedFile {
-  const all = parseCsv(text);
+  return parseRows(parseCsv(text));
+}
+
+/** Finds the table in already split rows, e.g. from an Excel sheet. */
+export function parseRows(all: string[][]): ParsedFile {
   let headerIndex = -1;
   let best = 1;
   all.slice(0, 40).forEach((row, i) => {
@@ -164,6 +181,11 @@ export function detectKind(header: string[], rows: string[][] = []): ImportKind 
   const tx = autoMap(header, 'transactions', rows);
   // A column with words like "Kauf" or "BUY" in it is the strongest hint for a transaction list.
   const hasTrades = tx.type >= 0 && rows.slice(0, 500).some((r) => transactionKind(r[tx.type] ?? '') !== undefined);
+  // A unit column with grams next to titles naming a metal: a precious-metal account.
+  const mt = autoMap(header, 'metals', rows);
+  const metalRows = mt.unit >= 0 && mt.title >= 0
+    && rows.slice(0, 500).some((r) => gramsPer(r[mt.unit] ?? '') !== undefined && metalOf(r[mt.title] ?? '') !== undefined);
+  if (complete('metals') && metalRows) return 'metals';
   if (complete('transactions') && (tx.isin >= 0 || hasTrades)) return 'transactions';
   if (complete('positions')) return 'positions';
   if (complete('statement')) return 'statement';
@@ -317,6 +339,10 @@ export interface TransactionDraft {
   /** price of the newest trade, as a stand-in until a live quote exists */
   lastPrice?: { price: number; date: string };
   warnings: string[];
+  /** set for precious metals: the draft becomes a metal position */
+  metal?: Metal;
+  /** share or fund, as the file says */
+  securityType?: 'stock' | 'etf';
 }
 
 /** One row that changes the broker's cash account or an open order. */
@@ -350,6 +376,8 @@ export interface TransactionsResult {
   cash?: { balance: number; date: string };
   /** the same money movements row by row, for adding only new rows to an existing account */
   cashEvents: CashEvent[];
+  /** a name the file suggests for the cash account, e.g. the provider */
+  accountName?: string;
 }
 
 const BUY_RE = /kauf|buy|sparplan|savings|purchase|erwerb|einbuchung|zeichnung|subscription/i;
@@ -407,6 +435,7 @@ export function readTransactions(file: ParsedFile, mapping: Mapping): Transactio
     const tax = Math.abs(orZero(taxRaw));
     const price = Math.abs(parseAmount(cell(row, mapping.price)));
     const note = cell(row, mapping.note ?? -1);
+    const assetType = cell(row, mapping.assetType ?? -1);
     const txId = cell(row, mapping.ref ?? -1);
     const id = isin ?? normalizeHeader(name);
     const rowRef = txId || cashRef(`${date}|${type}|${id}|${cell(row, mapping.amount)}|${cell(row, mapping.fee ?? -1)}|${cell(row, mapping.tax ?? -1)}`);
@@ -444,7 +473,8 @@ export function readTransactions(file: ParsedFile, mapping: Mapping): Transactio
     }
     // Buys cost the price plus fees; sales bring the price minus fees and taxes.
     const total = Number.isFinite(gross) ? round2(kind === 'buy' ? gross + fee : Math.max(0, gross - fee - tax)) : 0;
-    const g = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, invested: 0, warnings: [] };
+    const g: TransactionDraft = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, invested: 0, warnings: [] };
+    if (!g.securityType && assetType) g.securityType = /fund|fonds|etf|etc|etp/i.test(assetType) ? 'etf' : /stock|aktie|share|equity/i.test(assetType) ? 'stock' : undefined;
     if (!Number.isFinite(gross) && !g.warnings.length) g.warnings.push('Mindestens eine Buchung ohne Betrag – als 0 € übernommen.');
     const unitPrice = Number.isFinite(price) && price > 0 ? price : Number.isFinite(gross) ? gross / quantity : undefined;
     const purchase: Purchase = {
@@ -475,6 +505,130 @@ export function readTransactions(file: ParsedFile, mapping: Mapping): Transactio
     pending: pendingList(fresh),
     cash: hasDeposits && cashEvents.some((e) => e.cash !== 0) ? { balance: fresh.cash, date: lastDate } : undefined,
     cashEvents,
+  };
+}
+
+// ---------- precious-metal transactions (e.g. Flexgold) ----------
+
+const METAL_WORDS: [RegExp, Metal][] = [
+  [/palladium/i, 'palladium'],
+  [/platin/i, 'platinum'],
+  [/silber|silver/i, 'silver'],
+  [/gold/i, 'gold'],
+];
+
+export function metalOf(text: string): Metal | undefined {
+  return METAL_WORDS.find(([re]) => re.test(text))?.[1];
+}
+
+/** Grams per unit of a weight column ("g", "Gramm", "kg", "oz", "Unze"); undefined for money. */
+function gramsPer(unit: string): number | undefined {
+  const u = unit.trim().toLowerCase();
+  if (u === 'g' || u === 'gr' || u === 'gramm' || u === 'gram' || u === 'grams') return 1;
+  if (u === 'kg' || u === 'kilogramm') return 1000;
+  if (/^(oz|ozt|oz\.? ?t|unze|feinunze|troy ?oz)/.test(u)) return GRAMS_PER_TROY_OUNCE;
+  return undefined;
+}
+
+const isMoney = (unit: string) => /^(eur|€|euro|usd|\$)$/i.test(unit.trim());
+
+/** Flexgold's export: two rows per transaction (grams and euros) with a vault id. */
+const looksLikeFlexgold = (header: string[]) => header.some((h) => normalizeHeader(h) === 'vaultid');
+
+/**
+ * Reads a precious-metal account history: each transaction is one or more rows
+ * with the same id – a weight row (grams of metal) and/or a money row (euros).
+ * Weight rows become purchases (or sales/withdrawals when negative) of a metal
+ * position, money rows move the cash account.
+ */
+export function readMetalTransactions(file: ParsedFile, mapping: Mapping): TransactionsResult {
+  const provider = looksLikeFlexgold(file.header) ? 'Flexgold' : '';
+  const groups = new Map<string, TransactionDraft>();
+  const ignored = new Set<string>();
+  const cashEvents: CashEvent[] = [];
+  const legRef = numbered();
+  let skipped = 0;
+  let hasDeposits = false;
+
+  // Collect the legs of each transaction.
+  const txs = new Map<string, { date?: string; title: string; metal?: { grams: number; price?: number }; money?: number }>();
+  file.rows.forEach((row, index) => {
+    const id = cell(row, mapping.ref ?? -1) || `row${index}`;
+    const t = txs.get(id) ?? { title: '' };
+    t.title ||= cell(row, mapping.title);
+    t.date ||= parseDate(cell(row, mapping.date));
+    const amount = parseAmount(cell(row, mapping.amount));
+    const unit = cell(row, mapping.unit);
+    const per = gramsPer(unit);
+    if (!Number.isFinite(amount)) return;
+    if (per !== undefined) {
+      const priceRaw = Math.abs(parseAmount(cell(row, mapping.price ?? -1)));
+      const priceUnit = cell(row, mapping.priceUnit ?? -1).toLowerCase();
+      const pricePer = /oz|unze/.test(priceUnit) ? GRAMS_PER_TROY_OUNCE : /kg/.test(priceUnit) ? 1000 : 1;
+      t.metal = { grams: (t.metal?.grams ?? 0) + amount * per, price: Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw / pricePer : t.metal?.price };
+    } else if (isMoney(unit) || unit === '') {
+      t.money = (t.money ?? 0) + amount;
+    }
+    txs.set(id, t);
+  });
+
+  for (const [id, t] of txs) {
+    const ref = id.startsWith('row') ? undefined : id;
+    if (t.money !== undefined && t.date) {
+      cashEvents.push({ ref: ref ? `${ref}|EUR` : legRef(`${t.date}|${t.title}|${t.money}`), date: t.date, cash: round2(t.money) });
+      if (!t.metal && DEPOSIT_RE.test(t.title)) hasDeposits = true;
+    }
+    if (!t.metal) {
+      if (t.money === undefined && t.title) ignored.add(t.title);
+      skipped++;
+      continue;
+    }
+    const metal = metalOf(t.title);
+    if (!metal || !t.date || Math.abs(t.metal.grams) < 1e-9) {
+      if (t.title) ignored.add(t.title);
+      skipped++;
+      continue;
+    }
+    const grams = Math.abs(t.metal.grams);
+    const kind: 'buy' | 'sell' = t.metal.grams > 0 ? 'buy' : 'sell';
+    const money = t.money !== undefined ? Math.abs(t.money) : undefined;
+    // A buy costs what was paid; without a money row, weight × price. Outflows without money (fees, delivery) bring nothing.
+    const total = round2(money ?? (kind === 'buy' && t.metal.price ? grams * t.metal.price : 0));
+    const name = provider ? `${METAL_LABEL[metal]} (${provider})` : METAL_LABEL[metal];
+    const key = `metal:${metal}:${normalizeHeader(name)}`;
+    const g = groups.get(key) ?? { key, name, metal, purchases: [], quantity: 0, invested: 0, warnings: [] };
+    const purchase: Purchase = {
+      id: newId(), kind, date: t.date, quantity: grams, totalCost: total,
+      price: t.metal.price ?? (money !== undefined && grams > 0 ? money / grams : undefined),
+      note: SAVINGS_RE.test(t.title) ? 'Sparplan' : kind === 'sell' && !/verkauf|sell/i.test(t.title) ? t.title : undefined,
+    };
+    purchase.ref = ref ? `${ref}|g` : legRef(`${key}|${tradeFingerprint(purchase)}`);
+    if (kind === 'sell' && money === undefined && !g.warnings.some((w) => w.startsWith('Abgang'))) {
+      g.warnings.push(`Abgang ohne Erlös übernommen (${t.title}) – z. B. Gebühr oder Auslieferung.`);
+    }
+    g.purchases.push(purchase);
+    g.quantity += kind === 'buy' ? grams : -grams;
+    if (kind === 'buy') g.invested += total;
+    if (purchase.price && (!g.lastPrice || t.date >= g.lastPrice.date)) g.lastPrice = { price: purchase.price, date: t.date };
+    groups.set(key, g);
+  }
+
+  const drafts = [...groups.values()].map((g) => {
+    g.purchases.sort((a, b) => a.date.localeCompare(b.date));
+    g.invested = round2(g.invested);
+    if (g.quantity < -1e-9) g.warnings.push('Mehr Abgänge als Zugänge – die Datei deckt vermutlich nicht alle Käufe ab.');
+    return g;
+  });
+  const fresh = foldCashEvents(emptyBroker(), cashEvents);
+  const lastDate = cashEvents.reduce((d, e) => (e.date > d ? e.date : d), '');
+  return {
+    drafts,
+    skipped,
+    ignoredTypes: [...ignored],
+    pending: [],
+    cash: hasDeposits ? { balance: fresh.cash, date: lastDate } : undefined,
+    cashEvents,
+    accountName: provider || undefined,
   };
 }
 
@@ -537,8 +691,10 @@ export function applyBrokerAccount(
 // ---------- applying to the portfolio ----------
 
 /** Same ISIN, or – when one side has none, e.g. after an earlier import without ISIN – the same name. */
-const sameSecurity = (h: Holding, d: { isin?: string; name: string }): boolean =>
-  h.assetClass === 'stock' && (d.isin && h.isin ? h.isin === d.isin : normalizeHeader(h.name) === normalizeHeader(d.name));
+const sameSecurity = (h: Holding, d: { isin?: string; name: string; metal?: Metal }): boolean =>
+  d.metal
+    ? h.assetClass === 'metal' && h.metal === d.metal && normalizeHeader(h.name) === normalizeHeader(d.name)
+    : h.assetClass === 'stock' && (d.isin && h.isin ? h.isin === d.isin : normalizeHeader(h.name) === normalizeHeader(d.name));
 
 /** The existing holding a draft would update, if any. */
 export function matchHolding(state: PortfolioState, d: { isin?: string; name: string }): Holding | undefined {
@@ -636,11 +792,16 @@ export function applyTransactions(state: PortfolioState, drafts: TransactionDraf
     const i = plan.holding ? holdings.findIndex((h) => h.id === plan.holding!.id) : -1;
     const base = i >= 0 && !plan.replaced ? holdings[i].purchases : [];
     const purchases = [...base, ...plan.added].sort((a, b) => a.date.localeCompare(b.date));
+    const fresh: Holding = d.metal
+      // The provider's grams are fine metal, so the fineness is 1000 ‰.
+      ? { id: newId(), assetClass: 'metal', name: d.name, metal: d.metal, fineness: 1000, purchases }
+      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', securityType: d.securityType, purchases };
     const holding: Holding = i >= 0
-      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases }
-      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases };
+      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, securityType: holdings[i].securityType ?? d.securityType, purchases }
+      : fresh;
     if (i >= 0) holdings[i] = holding;
     else holdings.push(holding);
+    if (d.metal) continue; // metals are valued with the shared price per gram, not a quote of their own
     const key = quoteKey(holding);
     const existing = key ? quotes[key] : undefined;
     // Never replace a live quote, and never a manual price that is newer than the last trade.
