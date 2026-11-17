@@ -98,7 +98,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
     setTab('holdings');
   };
   const [refreshing, setRefreshing] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; lines: string[] } | null>(null);
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error' | 'warn'; lines: string[]; toSettings?: boolean } | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
 
   // Saves run one after another, so an older (slower) encryption can never overwrite a newer state.
@@ -156,7 +156,11 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       setLastLive((cur) => ({ at: r.updated > 0 ? Date.now() : cur.at, error: r.errors[0] }));
       if (!auto) {
         const lines = [`${r.updated} Kurs${r.updated === 1 ? '' : 'e'} aktualisiert.`, ...r.errors];
-        setMessage({ kind: r.errors.length ? 'error' : 'ok', lines });
+        if (r.missingStockKey) {
+          const n = r.missingStockKey;
+          lines.push(`Für ${n === 1 ? 'eine Aktie / einen ETF' : `${n} Aktien & ETFs`} fehlt noch der kostenlose Alpha-Vantage-Key – ohne ihn bleiben deren Kurse beim letzten Stand.`);
+        }
+        setMessage({ kind: r.errors.length ? 'error' : r.missingStockKey ? 'warn' : 'ok', lines, toSettings: !!r.missingStockKey });
       }
     } finally {
       busyRef.current = false;
@@ -217,7 +221,12 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       {message && (
         <div className={`banner ${message.kind}`} role="status">
           {message.lines.map((l, i) => <div key={i}>{l}</div>)}
-          <button className="link" onClick={() => setMessage(null)}>Schließen</button>
+          <div className="banner-actions">
+            {message.toSettings && (
+              <button className="link" onClick={() => { setMessage(null); setTab('settings'); setFocusId(undefined); setClassFilter(null); }}>Key in den Einstellungen eintragen</button>
+            )}
+            <button className="link" onClick={() => setMessage(null)}>Schließen</button>
+          </div>
         </div>
       )}
 

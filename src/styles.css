@@ -148,8 +148,8 @@
 body {
   margin: 0;
   background:
-    radial-gradient(1100px 480px at 8% -8%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 70%),
-    radial-gradient(900px 420px at 100% 0%, color-mix(in srgb, var(--gold) 13%, transparent), transparent 70%),
+    radial-gradient(1100px 480px at 8% -8%, rgb(111 134 240 / .1), rgb(111 134 240 / 0) 70%),
+    radial-gradient(900px 420px at 100% 0%, rgb(227 179 65 / .13), rgb(227 179 65 / 0) 70%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -246,6 +246,7 @@ main .banner { margin-bottom: 0; display: block; }
 .banner.error { background: var(--error-bg); }
 .banner.warn { background: var(--warn-bg); }
 .banner .link { align-self: flex-start; margin-top: 4px; }
+.banner-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .badge { font-size: 12px; font-weight: 550; padding: 2px 9px; border-radius: 999px; background: var(--track); color: var(--text-2); vertical-align: middle; margin-left: 6px; }
 .badge.ok { background: var(--ok-bg); color: var(--pos); }
 
@@ -259,7 +260,7 @@ main .banner { margin-bottom: 0; display: block; }
 }
 .hero::after {
   content: ""; position: absolute; right: -80px; top: -120px; width: 320px; height: 320px; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--gold) 34%, transparent), transparent 68%);
+  background: radial-gradient(circle closest-side, rgb(227 179 65 / .34), rgb(227 179 65 / 0));
   pointer-events: none;
 }
 .hero-label { color: var(--hero-text-2); font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }

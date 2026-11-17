@@ -214,6 +214,8 @@ export interface RefreshResult {
   changed: { quotes: Record<string, Quote>; metalPrices: PortfolioState['metalPrices'] };
   errors: string[];
   updated: number;
+  /** stock positions that could not be priced because no Alpha Vantage key is set */
+  missingStockKey?: number;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -250,6 +252,9 @@ export async function refreshQuotes(
     ? []
     : state.holdings.filter((h): h is Holding & { symbol: string } => h.assetClass === 'stock' && !!h.symbol);
   const stockBySymbol = new Map(stocks.map((h) => [h.symbol.toUpperCase(), h]));
+  // Without a key there is nothing to ask: report it once instead of as an error of the first symbol.
+  const missingStockKey = stockBySymbol.size && !state.settings.alphaVantageKey ? stockBySymbol.size : undefined;
+  if (missingStockKey) stockBySymbol.clear();
 
   if (crypto.length) {
     try {
@@ -332,5 +337,5 @@ export async function refreshQuotes(
     }
   }
 
-  return { quotes, metalPrices, changed, errors, updated };
+  return { quotes, metalPrices, changed, errors, updated, missingStockKey };
 }
