@@ -6,7 +6,7 @@
  * titles (many known spellings), and the user can correct the mapping.
  */
 import { normalizeHeader, parseAmount, parseCsv, parseDate } from './csv';
-import { Holding, newId, PortfolioState, Purchase, quoteKey } from './types';
+import { BrokerAccount, Holding, newId, PortfolioState, Purchase, quoteKey } from './types';
 
 /** What a file contains. */
 export type ImportKind = 'statement' | 'positions' | 'transactions';
@@ -52,6 +52,10 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'quantity', label: 'Stück', names: ['Stück', 'Stueck', 'Stück/Nominale', 'Nominale', 'Anzahl', 'Menge', 'Shares', 'Quantity'] },
     { key: 'amount', label: 'Betrag (gesamt)', names: ['Betrag', 'Wert', 'Gesamt', 'Gesamtbetrag', 'Amount', 'Total', 'Kurswert'] },
     { key: 'price', label: 'Kurs (je Stück)', names: ['Kurs', 'Preis', 'Price', 'Ausführungskurs'] },
+    { key: 'fee', label: 'Gebühr', names: ['Gebühr', 'Gebühren', 'Gebuehr', 'Fee', 'Fees', 'Provision', 'Kosten', 'Transaktionskosten'] },
+    { key: 'tax', label: 'Steuern', names: ['Steuer', 'Steuern', 'Tax', 'Taxes', 'Quellensteuer'] },
+    { key: 'note', label: 'Beschreibung', names: ['Beschreibung', 'Description', 'Notiz', 'Verwendungszweck', 'Buchungstext'] },
+    { key: 'ref', label: 'Buchungsnummer', names: ['Transaction ID', 'Transaktions-ID', 'Transaktionsnummer', 'Buchungsnummer', 'Auftragsnummer', 'Ordernummer', 'Order ID', 'Referenznummer'] },
   ],
 };
 
@@ -115,11 +119,31 @@ function findColumn(header: string[], names: string[], used: Set<number>): numbe
   return -1;
 }
 
-export function autoMap(header: string[], kind: ImportKind): Mapping {
+/** A column whose filled cells are mostly ISINs, whatever its title (Trade Republic calls it "symbol"). */
+function findIsinColumn(rows: string[][], used: Set<number>): number {
+  const sample = rows.slice(0, 200);
+  const width = Math.max(0, ...sample.map((r) => r.length));
+  let best = -1;
+  let bestShare = 0.5;
+  for (let i = 0; i < width; i++) {
+    if (used.has(i)) continue;
+    const filled = sample.map((r) => (r[i] ?? '').trim()).filter((v) => v !== '');
+    if (filled.length === 0) continue;
+    const share = filled.filter((v) => ISIN_RE.test(v.toUpperCase())).length / filled.length;
+    if (share > bestShare) {
+      best = i;
+      bestShare = share;
+    }
+  }
+  return best;
+}
+
+export function autoMap(header: string[], kind: ImportKind, rows: string[][] = []): Mapping {
   const used = new Set<number>();
   const mapping: Mapping = {};
   for (const def of FIELDS[kind]) {
-    const i = findColumn(header, def.names, used);
+    let i = findColumn(header, def.names, used);
+    if (i < 0 && def.key === 'isin') i = findIsinColumn(rows, used);
     mapping[def.key] = i;
     if (i >= 0) used.add(i);
   }
@@ -134,11 +158,13 @@ export function missingFields(kind: ImportKind, mapping: Mapping): string[] {
     .map((req) => req.split('|').map(label).join(' oder '));
 }
 
-/** Best guess what the file contains, from its column titles. */
-export function detectKind(header: string[]): ImportKind {
-  const complete = (k: ImportKind) => missingFields(k, autoMap(header, k)).length === 0;
-  const tx = autoMap(header, 'transactions');
-  if (complete('transactions') && tx.isin >= 0) return 'transactions';
+/** Best guess what the file contains, from its column titles and, if given, its content. */
+export function detectKind(header: string[], rows: string[][] = []): ImportKind {
+  const complete = (k: ImportKind) => missingFields(k, autoMap(header, k, rows)).length === 0;
+  const tx = autoMap(header, 'transactions', rows);
+  // A column with words like "Kauf" or "BUY" in it is the strongest hint for a transaction list.
+  const hasTrades = tx.type >= 0 && rows.slice(0, 500).some((r) => transactionKind(r[tx.type] ?? '') !== undefined);
+  if (complete('transactions') && (tx.isin >= 0 || hasTrades)) return 'transactions';
   if (complete('positions')) return 'positions';
   if (complete('statement')) return 'statement';
   if (complete('transactions')) return 'transactions';
@@ -282,14 +308,54 @@ export interface TransactionDraft {
   key: string;
   name: string;
   isin?: string;
+  /** every trade carries a `ref`, so a later import of an overlapping file adds only what is new */
   purchases: Purchase[];
-  /** remaining quantity after all buys and sells */
+  /** remaining quantity after all buys and sells in the file */
   quantity: number;
+  /** sum of all purchase amounts in the file, incl. fees */
+  invested: number;
+  /** price of the newest trade, as a stand-in until a live quote exists */
+  lastPrice?: { price: number; date: string };
   warnings: string[];
 }
 
-const BUY_RE = /kauf|buy|sparplan|savings|purchase|erwerb|einbuchung|zeichnung/i;
+/** One row that changes the broker's cash account or an open order. */
+export interface CashEvent {
+  ref: string;
+  date: string;
+  /** change of the cash balance */
+  cash: number;
+  /** change of money tied up in open orders, per security */
+  pending?: { id: string; name: string; amount: number };
+}
+
+/** Money paid for an order that has not produced shares yet (e.g. IPO subscriptions, private-market orders). */
+export interface PendingOrder {
+  name: string;
+  isin?: string;
+  amount: number;
+}
+
+export interface TransactionsResult {
+  drafts: TransactionDraft[];
+  skipped: number;
+  ignoredTypes: string[];
+  /** open orders as far as this file alone shows them */
+  pending: PendingOrder[];
+  /**
+   * Cash left on the broker account according to this file alone: every amount, fee and tax added up.
+   * Only right when the file reaches back to the opening of the account.
+   * Undefined when the file has no deposits (then it is no account history).
+   */
+  cash?: { balance: number; date: string };
+  /** the same money movements row by row, for adding only new rows to an existing account */
+  cashEvents: CashEvent[];
+}
+
+const BUY_RE = /kauf|buy|sparplan|savings|purchase|erwerb|einbuchung|zeichnung|subscription/i;
 const SELL_RE = /verkauf|sell|sale|ausbuchung|veräußerung|veraeusserung/i;
+const DEPOSIT_RE = /transfer|inpayment|einzahlung|deposit|überweisung|ueberweisung|gutschrift|top.?up|interest|zins/i;
+const SAVINGS_RE = /savings plan|sparplan/i;
 
 /** 'sell' is tested first: "Verkauf" contains "kauf". */
 export function transactionKind(type: string): 'buy' | 'sell' | undefined {
@@ -298,10 +364,35 @@ export function transactionKind(type: string): 'buy' | 'sell' | undefined {
   return undefined;
 }
 
-export function readTransactions(file: ParsedFile, mapping: Mapping): { drafts: TransactionDraft[]; skipped: number; ignoredTypes: string[] } {
+const orZero = (n: number) => (Number.isFinite(n) ? n : 0);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** What makes a trade the same trade when the file has no transaction id. */
+export function tradeFingerprint(p: Pick<Purchase, 'kind' | 'date' | 'quantity' | 'totalCost'>): string {
+  return `${p.kind ?? 'buy'}|${p.date}|${p.quantity.toFixed(6)}|${p.totalCost.toFixed(2)}`;
+}
+
+/**
+ * Gives identical rows a running number ("…#1", "…#2"), so two genuinely
+ * identical trades in one file stay two trades.
+ */
+function numbered() {
+  const seen = new Map<string, number>();
+  return (base: string) => {
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return `${base}#${n}`;
+  };
+}
+
+export function readTransactions(file: ParsedFile, mapping: Mapping): TransactionsResult {
   const groups = new Map<string, TransactionDraft>();
   const ignored = new Set<string>();
+  const cashEvents: CashEvent[] = [];
+  const tradeRef = numbered();
+  const cashRef = numbered();
   let skipped = 0;
+  let hasDeposits = false;
   for (const row of file.rows) {
     const type = cell(row, mapping.type);
     const kind = transactionKind(type);
@@ -309,39 +400,145 @@ export function readTransactions(file: ParsedFile, mapping: Mapping): { drafts: 
     const isin = cleanIsin(cell(row, mapping.isin));
     const name = cell(row, mapping.name) || isin || '';
     const quantity = Math.abs(parseAmount(cell(row, mapping.quantity)));
+    const amount = parseAmount(cell(row, mapping.amount));
+    const feeRaw = parseAmount(cell(row, mapping.fee ?? -1));
+    const taxRaw = parseAmount(cell(row, mapping.tax ?? -1));
+    const fee = Math.abs(orZero(feeRaw));
+    const tax = Math.abs(orZero(taxRaw));
+    const price = Math.abs(parseAmount(cell(row, mapping.price)));
+    const note = cell(row, mapping.note ?? -1);
+    const txId = cell(row, mapping.ref ?? -1);
+    const id = isin ?? normalizeHeader(name);
+    const rowRef = txId || cashRef(`${date}|${type}|${id}|${cell(row, mapping.amount)}|${cell(row, mapping.fee ?? -1)}|${cell(row, mapping.tax ?? -1)}`);
+
+    if (!kind && DEPOSIT_RE.test(type)) hasDeposits = true;
+    const event: CashEvent | undefined = Number.isFinite(amount) && date
+      ? { ref: rowRef, date, cash: round2(amount + orZero(feeRaw) + orZero(taxRaw)) }
+      : undefined;
+
     if (!kind) {
+      if (event) cashEvents.push(event);
       if (type) ignored.add(type);
       skipped++;
       continue;
     }
-    if (!date || !name || !(quantity > 0)) {
+    if (!(quantity > 0)) {
+      // Paid, but no shares yet: an order that is still open.
+      if (event) {
+        if (kind === 'buy' && name) event.pending = { id, name, amount: round2(Math.abs(amount) + fee) };
+        cashEvents.push(event);
+      }
       skipped++;
       continue;
     }
-    const amountCol = Math.abs(parseAmount(cell(row, mapping.amount)));
-    const price = Math.abs(parseAmount(cell(row, mapping.price)));
-    const total = Number.isFinite(amountCol) ? amountCol : Number.isFinite(price) ? price * quantity : NaN;
-    const id = isin ?? normalizeHeader(name);
-    const g = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, warnings: [] };
-    if (!Number.isFinite(total)) {
-      if (!g.warnings.length) g.warnings.push('Mindestens eine Buchung ohne Betrag – als 0 € übernommen.');
+    if (!date || !name) {
+      if (event) cashEvents.push(event);
+      skipped++;
+      continue;
     }
-    g.purchases.push({ id: newId(), kind, date, quantity, totalCost: Number.isFinite(total) ? total : 0 });
+    const gross = Number.isFinite(amount) ? Math.abs(amount) : Number.isFinite(price) ? price * quantity : NaN;
+    if (event) cashEvents.push(event);
+    else if (kind === 'buy' && Number.isFinite(gross)) {
+      // Executed without an amount: paid by an earlier prepayment, so the open order shrinks.
+      cashEvents.push({ ref: rowRef, date, cash: 0, pending: { id, name, amount: -round2(gross) } });
+    }
+    // Buys cost the price plus fees; sales bring the price minus fees and taxes.
+    const total = Number.isFinite(gross) ? round2(kind === 'buy' ? gross + fee : Math.max(0, gross - fee - tax)) : 0;
+    const g = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, invested: 0, warnings: [] };
+    if (!Number.isFinite(gross) && !g.warnings.length) g.warnings.push('Mindestens eine Buchung ohne Betrag – als 0 € übernommen.');
+    const unitPrice = Number.isFinite(price) && price > 0 ? price : Number.isFinite(gross) ? gross / quantity : undefined;
+    const purchase: Purchase = {
+      id: newId(), kind, date, quantity, totalCost: total,
+      price: unitPrice,
+      fee: fee > 0 ? fee : undefined,
+      note: SAVINGS_RE.test(note) || SAVINGS_RE.test(type) ? 'Sparplan' : undefined,
+    };
+    purchase.ref = txId || tradeRef(`${id}|${tradeFingerprint(purchase)}`);
+    g.purchases.push(purchase);
     g.quantity += kind === 'buy' ? quantity : -quantity;
+    if (kind === 'buy') g.invested += total;
+    if (unitPrice !== undefined && (!g.lastPrice || date >= g.lastPrice.date)) g.lastPrice = { price: unitPrice, date };
     groups.set(id, g);
   }
   const drafts = [...groups.values()].map((g) => {
     g.purchases.sort((a, b) => a.date.localeCompare(b.date));
+    g.invested = round2(g.invested);
     if (g.quantity < -1e-9) g.warnings.push('Mehr verkauft als gekauft – die Datei deckt vermutlich nicht alle Käufe ab.');
     return g;
   });
-  return { drafts, skipped, ignoredTypes: [...ignored] };
+  const fresh = foldCashEvents(emptyBroker(), cashEvents);
+  const lastDate = cashEvents.reduce((d, e) => (e.date > d ? e.date : d), '');
+  return {
+    drafts,
+    skipped,
+    ignoredTypes: [...ignored],
+    pending: pendingList(fresh),
+    cash: hasDeposits && cashEvents.some((e) => e.cash !== 0) ? { balance: fresh.cash, date: lastDate } : undefined,
+    cashEvents,
+  };
+}
+
+// ---------- broker cash account ----------
+
+export const emptyBroker = (): BrokerAccount => ({ refs: [], cash: 0, pending: {} });
+
+/** Applies the rows a broker account has not seen yet. Returns the new state and how many rows were new. */
+export function foldCashEvents(start: BrokerAccount, events: CashEvent[]): BrokerAccount & { added: number; delta: number } {
+  const known = new Set(start.refs);
+  const pending: BrokerAccount['pending'] = Object.fromEntries(Object.entries(start.pending).map(([k, v]) => [k, { ...v }]));
+  let cash = start.cash;
+  let added = 0;
+  let delta = 0;
+  for (const e of events) {
+    if (known.has(e.ref)) continue;
+    known.add(e.ref);
+    added++;
+    cash += e.cash;
+    delta += e.cash;
+    if (e.pending) {
+      const p = pending[e.pending.id] ?? { name: e.pending.name, amount: 0 };
+      p.amount = round2(p.amount + e.pending.amount);
+      pending[e.pending.id] = p;
+    }
+  }
+  return { refs: [...known], cash: round2(cash), pending, added, delta: round2(delta) };
+}
+
+/** Open orders with money still tied up in them. */
+export function pendingList(b: BrokerAccount): PendingOrder[] {
+  return Object.entries(b.pending)
+    .filter(([, p]) => p.amount > 0.005)
+    .map(([id, p]) => ({ name: p.name, isin: ISIN_RE.test(id) ? id : undefined, amount: p.amount }));
+}
+
+export const brokerBalance = (b: BrokerAccount, withPending: boolean): number =>
+  round2(b.cash + (withPending ? pendingList(b).reduce((s, p) => s + p.amount, 0) : 0));
+
+/**
+ * Updates (or creates) the broker's cash account with the rows it has not seen yet.
+ * Without earlier import data the account starts from zero, so its balance is the sum of the file.
+ */
+export function applyBrokerAccount(
+  state: PortfolioState,
+  opts: { accountId?: string; name: string; events: CashEvent[]; withPending: boolean },
+): PortfolioState {
+  const existing = opts.accountId ? state.holdings.find((h) => h.id === opts.accountId) : undefined;
+  const next = foldCashEvents(existing?.broker ?? emptyBroker(), opts.events);
+  const broker: BrokerAccount = { refs: next.refs, cash: next.cash, pending: next.pending, withPending: opts.withPending };
+  const lastDate = opts.events.reduce((d, e) => (e.date > d ? e.date : d), existing?.balanceDate ?? '');
+  const fields = { broker, balance: brokerBalance(broker, opts.withPending), balanceDate: lastDate || existing?.balanceDate };
+  if (existing) {
+    return { ...state, holdings: state.holdings.map((h) => (h.id === existing.id ? { ...h, ...fields } : h)) };
+  }
+  const holding: Holding = { id: newId(), assetClass: 'cash', name: opts.name, purchases: [], ...fields };
+  return { ...state, holdings: [...state.holdings, holding] };
 }
 
 // ---------- applying to the portfolio ----------
 
+/** Same ISIN, or – when one side has none, e.g. after an earlier import without ISIN – the same name. */
 const sameSecurity = (h: Holding, d: { isin?: string; name: string }): boolean =>
-  h.assetClass === 'stock' && (d.isin ? h.isin === d.isin : !h.isin && normalizeHeader(h.name) === normalizeHeader(d.name));
+  h.assetClass === 'stock' && (d.isin && h.isin ? h.isin === d.isin : normalizeHeader(h.name) === normalizeHeader(d.name));
 
 /** The existing holding a draft would update, if any. */
 export function matchHolding(state: PortfolioState, d: { isin?: string; name: string }): Holding | undefined {
@@ -373,15 +570,86 @@ export function applyPositions(state: PortfolioState, drafts: PositionDraft[], t
   return { ...state, holdings, quotes };
 }
 
-/** Takes over buy/sell histories. An existing position (same ISIN) gets its history replaced by the file's. */
-export function applyTransactions(state: PortfolioState, drafts: TransactionDraft[]): PortfolioState {
+/** How an import would change one security: which trades are new, which are already there. */
+export interface TradePlan {
+  draft: TransactionDraft;
+  holding?: Holding;
+  added: Purchase[];
+  duplicates: number;
+  /** the position's existing trades are dropped in favour of the file's */
+  replaced: boolean;
+}
+
+/**
+ * A position whose only purchases are 0-€ lots without import id: what the
+ * first version of the import made of a transaction list. Such lots are
+ * replaced automatically, everything else is merged.
+ */
+export function hasOnlyBrokenLots(h: Holding): boolean {
+  return h.purchases.length > 0 && h.purchases.every((p) => !p.ref && p.totalCost === 0);
+}
+
+/**
+ * Compares the file's trades with what a position already has. A trade counts
+ * as known when its `ref` (transaction id or fingerprint) matches, or – for
+ * trades entered by hand, which have no ref – when date, quantity, amount and
+ * kind are the same. With `replace`, the file's trades replace all existing ones.
+ */
+export function planTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false): TradePlan[] {
+  return drafts.map((draft) => {
+    const holding = state.holdings.find((h) => sameSecurity(h, draft));
+    if (!holding) return { draft, holding, added: draft.purchases, duplicates: 0, replaced: false };
+    if (replace || hasOnlyBrokenLots(holding)) return { draft, holding, added: draft.purchases, duplicates: 0, replaced: true };
+    const refs = new Set(holding.purchases.map((p) => p.ref).filter(Boolean));
+    const byHand = new Map<string, number>();
+    for (const p of holding.purchases) {
+      if (!p.ref) byHand.set(tradeFingerprint(p), (byHand.get(tradeFingerprint(p)) ?? 0) + 1);
+    }
+    const added: Purchase[] = [];
+    let duplicates = 0;
+    for (const p of draft.purchases) {
+      const fp = tradeFingerprint(p);
+      if (p.ref && refs.has(p.ref)) {
+        duplicates++;
+      } else if ((byHand.get(fp) ?? 0) > 0) {
+        byHand.set(fp, byHand.get(fp)! - 1);
+        duplicates++;
+      } else {
+        added.push(p);
+      }
+    }
+    return { draft, holding, added, duplicates, replaced: false };
+  });
+}
+
+/**
+ * Adds the new trades of each security to its position (creating positions as
+ * needed). With `replace`, or for positions with only broken 0-€ lots, a
+ * position's existing trades are replaced instead.
+ * The price of the newest trade stands in for a live quote until one exists.
+ */
+export function applyTransactions(state: PortfolioState, drafts: TransactionDraft[], replace = false): PortfolioState {
   const holdings = [...state.holdings];
-  for (const d of drafts) {
-    const i = holdings.findIndex((h) => sameSecurity(h, d));
-    if (i >= 0) holdings[i] = { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases: d.purchases };
-    else holdings.push({ id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases: d.purchases });
+  const quotes = { ...state.quotes };
+  for (const plan of planTransactions(state, drafts, replace)) {
+    const { draft: d } = plan;
+    const i = plan.holding ? holdings.findIndex((h) => h.id === plan.holding!.id) : -1;
+    const base = i >= 0 && !plan.replaced ? holdings[i].purchases : [];
+    const purchases = [...base, ...plan.added].sort((a, b) => a.date.localeCompare(b.date));
+    const holding: Holding = i >= 0
+      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases }
+      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases };
+    if (i >= 0) holdings[i] = holding;
+    else holdings.push(holding);
+    const key = quoteKey(holding);
+    const existing = key ? quotes[key] : undefined;
+    // Never replace a live quote, and never a manual price that is newer than the last trade.
+    const replaceQuote = !existing || (existing.source !== 'api' && existing.updatedAt.slice(0, 10) <= (d.lastPrice?.date ?? ''));
+    if (key && d.lastPrice && replaceQuote) {
+      quotes[key] = { eurPrice: d.lastPrice.price, price: d.lastPrice.price, currency: 'EUR', source: 'manual', updatedAt: `${d.lastPrice.date}T12:00:00.000Z` };
+    }
   }
-  return { ...state, holdings };
+  return { ...state, holdings, quotes };
 }
 
 /** Sets the balance of an account, creating the account when `accountId` is undefined. */
