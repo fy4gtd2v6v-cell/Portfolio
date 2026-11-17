@@ -4,6 +4,7 @@ import type { Update } from '../App';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
 import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from '../lib/prices';
+import { rankSymbolMatches, searchTerm } from '../lib/symbols';
 import {
   ASSET_CLASSES, AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
 } from '../lib/types';
@@ -402,16 +403,23 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Datum</th><th>Art</th><th className="num">{isMetal ? 'Gewicht' : 'Menge'}</th><th className="num">Betrag</th><th className="num">{isMetal ? '€/g' : '€/Stück'}</th><th /></tr>
+                <tr>
+                  <th>Datum</th><th>Art</th><th className="num">{isMetal ? 'Gewicht' : 'Menge'}</th>
+                  <th className="num">{isMetal ? 'Preis €/g' : 'Kurs'}</th><th className="num">Gebühr</th><th className="num">Betrag</th><th />
+                </tr>
               </thead>
               <tbody>
                 {h.purchases.map((p) => (
                   <tr key={p.id} className={p.id === v.oversoldBy ? 'row-error' : ''}>
                     <td>{new Date(p.date).toLocaleDateString('de-DE')}</td>
-                    <td>{p.kind === 'sell' ? 'Verkauf' : 'Kauf'}</td>
+                    <td>
+                      {p.kind === 'sell' ? 'Verkauf' : 'Kauf'}
+                      {p.note && <span className="tag trade-note">{p.note}</span>}
+                    </td>
                     <td className="num">{fmtNum(p.quantity, isMetal ? 2 : 8)}{isMetal && ' g'}</td>
-                    <td className="num">{fmtEur(p.totalCost)}</td>
-                    <td className="num">{fmtEur(p.totalCost / p.quantity)}</td>
+                    <td className="num">{fmtEur(p.price ?? p.totalCost / p.quantity)}</td>
+                    <td className="num">{p.fee ? fmtEur(p.fee) : <span className="muted">–</span>}</td>
+                    <td className="num strong">{fmtEur(p.totalCost)}</td>
                     <td className="num">
                       <button className="link danger" onClick={() => {
                         if (confirm(`${p.kind === 'sell' ? 'Verkauf' : 'Kauf'} löschen?`)) setHolding((x) => ({ ...x, purchases: x.purchases.filter((y) => y.id !== p.id) }));
@@ -442,7 +450,7 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
           </form>
 
           {h.assetClass === 'stock' && (
-            <SymbolEditor holding={h} onSave={(symbol, currency) =>
+            <SymbolEditor holding={h} apiKey={state.settings.alphaVantageKey} onSave={(symbol, currency) =>
               update((s) => {
                 const next: Holding = { ...h, symbol, currency };
                 const [oldKey, newKey] = [quoteKey(h), quoteKey(next)];
@@ -480,27 +488,82 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
   );
 }
 
-/** Lets an imported security (known only by ISIN) be linked to a ticker symbol, so it gets live prices. */
-function SymbolEditor({ holding: h, onSave }: { holding: Holding; onSave: (symbol: string | undefined, currency: Currency) => void }) {
+/**
+ * Links a security (often known only by ISIN after an import) to a ticker symbol, so it gets live prices.
+ * The search goes to Alpha Vantage by name; the best match for the ISIN's market is suggested first.
+ */
+function SymbolEditor({ holding: h, apiKey, onSave }: { holding: Holding; apiKey: string; onSave: (symbol: string | undefined, currency: Currency) => void }) {
   const [symbol, setSymbol] = useState(h.symbol ?? '');
   const [currency, setCurrency] = useState<Currency>(h.currency ?? 'EUR');
+  const [query, setQuery] = useState(searchTerm(h.name));
+  const [results, setResults] = useState<StockMatch[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const changed = symbol.trim().toUpperCase() !== (h.symbol ?? '') || currency !== (h.currency ?? 'EUR');
+
+  async function search() {
+    if (!query.trim()) return;
+    setBusy(true);
+    setError('');
+    setResults(null);
+    try {
+      const ranked = rankSymbolMatches(await searchStocks(query.trim(), apiKey), h.isin);
+      setResults(ranked);
+      if (ranked.length === 0) setError('Nichts Passendes gefunden. Versuch einen kürzeren Namen oder trag das Symbol selbst ein.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function pick(m: StockMatch) {
+    const c: Currency = isCurrency(m.currency) ? m.currency : 'EUR';
+    setSymbol(m.symbol);
+    setCurrency(c);
+    setResults(null);
+    onSave(m.symbol.toUpperCase(), c);
+  }
+
   return (
     <div>
       <h3>Symbol für Live-Kurse</h3>
       {!h.symbol && (
         <p className="muted small">
-          Diese Position hat noch kein Börsensymbol und wird deshalb nicht automatisch aktualisiert. Trag das Alpha-Vantage-Symbol ein
-          (z. B. AAPL oder SAP.DEX), um Live-Kurse zu erhalten.
+          Diese Position hat noch kein Börsensymbol. Bis dahin gilt der Kurs des letzten Kaufs. Such das Symbol über den Namen
+          (kostet eine der 25 täglichen Alpha-Vantage-Abfragen) oder trag es selbst ein, z. B. NVDA oder SAP.DEX.
         </p>
       )}
       <div className="inline">
-        <input placeholder="Symbol, z. B. AAPL" aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+        <input placeholder="Name, z. B. NVIDIA" aria-label="Suchbegriff" value={query} onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } }} />
+        <button type="button" onClick={search} disabled={busy || !apiKey || !query.trim()}
+          title={apiKey ? '' : 'Erst in den Einstellungen einen Alpha-Vantage-Key eintragen'}>
+          {busy ? 'Sucht …' : 'Symbol suchen'}
+        </button>
+      </div>
+      {!apiKey && <p className="muted small">Für die Suche brauchst du einen kostenlosen Alpha-Vantage-Key (Einstellungen).</p>}
+      {error && <div className="field-error">{error}</div>}
+      {results && results.length > 0 && (
+        <ul className="results">
+          {results.slice(0, 8).map((m, i) => (
+            <li key={m.symbol}>
+              <button type="button" className="result" onClick={() => pick(m)}>
+                <strong>{m.symbol}</strong> {m.name} <span className="muted">· {m.region} · {m.currency}</span>
+                {i === 0 && <span className="tag new">empfohlen</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="inline symbol-row">
+        <input placeholder="Symbol, z. B. NVDA" aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
         <select value={currency} aria-label="Handelswährung" onChange={(e) => setCurrency(e.target.value as Currency)}>
           {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
         </select>
         <button type="button" disabled={!changed} onClick={() => onSave(symbol.trim().toUpperCase() || undefined, currency)}>Speichern</button>
       </div>
+      {h.isin && <p className="muted small">ISIN {h.isin}</p>}
     </div>
   );
 }

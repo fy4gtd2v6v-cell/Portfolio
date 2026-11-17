@@ -553,3 +553,10 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 /* The generic button hover must not wash out controls that are filled with the brand colour. */
 .tab.active:hover:not(:disabled),
 .segmented button.active:hover:not(:disabled) { background: var(--brand-grad); color: #fff; }
+.trade-note { margin-left: 6px; }
+.symbol-row { margin-top: 10px; }
+.result .tag { margin-left: 8px; }
+.import-sub { margin: 16px 0 6px; }
+.check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin: 8px 0; cursor: pointer; }
+.check-row input { width: auto; margin-top: 4px; accent-color: var(--brand); }
+.check-row .amount { margin-left: auto; font-weight: 620; font-variant-numeric: tabular-nums; white-space: nowrap; }

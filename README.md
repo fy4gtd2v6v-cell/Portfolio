@@ -32,6 +32,12 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   (→ Positionen mit Stückzahl und Einstand) und Wertpapier-Transaktionen (→ Käufe und Verkäufe).
   Die Spalten werden an ihren Überschriften erkannt und lassen sich von Hand zuordnen; vor dem
   Import gibt es eine Vorschau. Die Datei wird nur im Browser gelesen.
+  Bei Transaktionslisten (z. B. Trade Republic) werden alle Käufe eines Wertpapiers zu einer Position
+  zusammengefasst; jeder Kauf bleibt mit Kurs, Gebühr, Betrag und Sparplan-Kennzeichen sichtbar.
+  Das Guthaben und bereits bezahlte, offene Aufträge können als Konto übernommen werden.
+- **Börsensymbol suchen**: Importierte Wertpapiere kennen zunächst nur ihre ISIN und werden mit dem
+  Kurs des letzten Kaufs bewertet. Bei der Position lässt sich das Symbol über den Namen bei
+  Alpha Vantage suchen (US-Aktien an der US-Börse, sonst bevorzugt Xetra in Euro).
 - Neue Positionen werden über „Neue Position“ in einem eigenen Fenster angelegt.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).
 

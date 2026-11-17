@@ -40,9 +40,9 @@ export function ImportDialog({ state, update, onClose, onDone }: {
         setLoaded(null);
         return setError('In dieser Datei wurde keine Tabelle gefunden. Bitte eine CSV-Datei aus dem Online-Banking wählen (kein PDF).');
       }
-      const k = detectKind(file.header);
+      const k = detectKind(file.header, file.rows);
       setKind(k);
-      setMapping(autoMap(file.header, k));
+      setMapping(autoMap(file.header, k, file.rows));
       setLoaded({ fileName: f.name, file });
     } catch {
       setLoaded(null);
@@ -53,7 +53,7 @@ export function ImportDialog({ state, update, onClose, onDone }: {
   const chooseKind = (k: ImportKind) => {
     if (!loaded) return;
     setKind(k);
-    setMapping(autoMap(loaded.file.header, k));
+    setMapping(autoMap(loaded.file.header, k, loaded.file.rows));
   };
 
   return (
@@ -286,11 +286,25 @@ function PositionsPreview({ file, mapping, state, onApply }: PreviewProps) {
   );
 }
 
+/** Trade Republic's transaction export: recognised by columns no bank statement has. */
+const looksLikeTradeRepublic = (header: string[]) => {
+  const h = header.map((x) => x.toLowerCase());
+  return h.includes('account_type') && h.includes('transaction_id') && h.includes('asset_class');
+};
+
 function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
-  const { drafts, skipped, ignoredTypes } = useMemo(() => readTransactions(file, mapping), [file, mapping]);
+  const { drafts, skipped, ignoredTypes, pending, cash } = useMemo(() => readTransactions(file, mapping), [file, mapping]);
   const [off, setOff] = useState<Set<string>>(new Set());
   const chosen = drafts.filter((d) => !off.has(d.key));
   const toggle = (key: string) => setOff((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+
+  const pendingSum = pending.reduce((s, p) => s + p.amount, 0);
+  const [takeCash, setTakeCash] = useState(true);
+  const [takePending, setTakePending] = useState(true);
+  const [accountName, setAccountName] = useState(looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto');
+  const existingAccount = state.holdings.find((h) => h.assetClass === 'cash' && h.name.trim().toLowerCase() === accountName.trim().toLowerCase());
+  const accountBalance = (cash ? cash.balance : 0) + (takePending ? pendingSum : 0);
+  const withAccount = !!cash && takeCash && accountName.trim() !== '';
 
   if (drafts.length === 0) {
     return (
@@ -301,18 +315,22 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
     );
   }
 
+  const invested = chosen.reduce((s, d) => s + d.invested, 0);
+
   return (
     <>
       <h3>Vorschau</h3>
       <div className="table-wrap">
         <table className="import-table">
           <thead>
-            <tr><th /><th>Wertpapier</th><th className="num">Buchungen</th><th className="num">Bestand danach</th><th /></tr>
+            <tr><th /><th>Wertpapier</th><th className="num">Buchungen</th><th className="num">Investiert</th><th className="num">Bestand</th><th className="num">Letzter Kurs</th><th /></tr>
           </thead>
           <tbody>
             {drafts.map((d) => {
               const match = matchHolding(state, d);
-              const buys = d.purchases.filter((p) => p.kind !== 'sell').length;
+              const buys = d.purchases.filter((p) => p.kind !== 'sell');
+              const plans = buys.filter((p) => p.note === 'Sparplan').length;
+              const sells = d.purchases.length - buys.length;
               return (
                 <tr key={d.key}>
                   <td><input type="checkbox" checked={!off.has(d.key)} onChange={() => toggle(d.key)} aria-label={`${d.name} importieren`} /></td>
@@ -321,8 +339,17 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
                     <div className="muted small">{d.isin ?? 'ohne ISIN'}</div>
                     {d.warnings.map((w) => <div key={w} className="warn-text">{w}</div>)}
                   </td>
-                  <td className="num">{buys} Käufe · {d.purchases.length - buys} Verkäufe</td>
+                  <td className="num">
+                    {buys.length} {buys.length === 1 ? 'Kauf' : 'Käufe'}
+                    {sells > 0 && ` · ${sells} ${sells === 1 ? 'Verkauf' : 'Verkäufe'}`}
+                    {plans > 0 && <div className="muted small">davon {plans} Sparplan</div>}
+                  </td>
+                  <td className="num">{fmtEur(d.invested)}</td>
                   <td className="num">{fmtNum(Math.max(0, d.quantity), 6)}</td>
+                  <td className="num">
+                    {d.lastPrice ? fmtEur(d.lastPrice.price) : '–'}
+                    {d.lastPrice && <div className="muted small">{day(d.lastPrice.date)}</div>}
+                  </td>
                   <td><span className={`tag ${match ? 'update' : 'new'}`}>{match ? 'ersetzt Historie' : 'neu'}</span></td>
                 </tr>
               );
@@ -330,16 +357,70 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
           </tbody>
         </table>
       </div>
+      <p className="small">
+        Zusammen investiert: <strong>{fmtEur(invested)}</strong> in {chosen.length} Wertpapier{chosen.length === 1 ? '' : 'en'}.
+      </p>
+      <p className="muted small">
+        Käufe desselben Wertpapiers werden zu einer Position zusammengefasst; jeder einzelne Kauf bleibt mit Kurs, Gebühr und Betrag
+        sichtbar. Bis ein Live-Kurs vorliegt, gilt der Kurs des letzten Kaufs. Bei Positionen mit gleicher ISIN ersetzt die Datei die
+        bisherigen Käufe und Verkäufe.
+      </p>
+
+      {cash && (
+        <>
+          <h3 className="import-sub">Guthaben</h3>
+          <label className="check-row">
+            <input type="checkbox" checked={takeCash} onChange={(e) => setTakeCash(e.target.checked)} />
+            <span>
+              Verrechnungskonto als Konto übernehmen
+              <span className="muted small"> – Summe aller Ein- und Auszahlungen, Zinsen, Käufe und Gebühren in der Datei. Stimmt nur, wenn die Datei seit Kontoeröffnung reicht.</span>
+            </span>
+            <span className="amount">{fmtEur(cash.balance)}</span>
+          </label>
+          {pending.length > 0 && (
+            <label className="check-row">
+              <input type="checkbox" checked={takePending} disabled={!takeCash} onChange={(e) => setTakePending(e.target.checked)} />
+              <span>
+                Offene Aufträge mitzählen
+                <span className="muted small"> – bezahlt, aber noch keine Anteile: {pending.map((p) => `${p.name} ${fmtEur(p.amount)}`).join(', ')}</span>
+              </span>
+              <span className="amount">+{fmtEur(pendingSum)}</span>
+            </label>
+          )}
+          {takeCash && (
+            <div className="grid">
+              <label className="field">
+                <span>Name des Kontos</span>
+                <input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+              </label>
+              <div className="field">
+                <span>Kontostand am {day(cash.date)}</span>
+                <div className="balance-big">{fmtEur(accountBalance)}</div>
+                <span className="muted small">{existingAccount ? `ersetzt den bisherigen Stand von ${fmtEur(existingAccount.balance ?? 0)}` : 'wird als neues Konto angelegt'}</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       <p className="muted small">
         {skipped > 0 && `${skipped} Zeilen ohne Kauf oder Verkauf übersprungen`}
         {ignoredTypes.length > 0 && ` (${ignoredTypes.slice(0, 6).join(', ')})`}
         {skipped > 0 && '. '}
-        Bei Positionen mit gleicher ISIN ersetzt die Datei die bisherigen Käufe und Verkäufe. Dividenden, Zinsen und Ein-/Auszahlungen werden nicht übernommen.
+        Dividenden und Zinsen werden nicht als Wertpapier-Buchungen übernommen.
       </p>
       <div className="inline">
-        <button type="button" className="primary" disabled={chosen.length === 0} onClick={() =>
-          onApply((s) => applyTransactions(s, chosen), `${chosen.length} Wertpapier${chosen.length === 1 ? '' : 'e'} mit Käufen und Verkäufen importiert.`)
-        }>{chosen.length} Wertpapier{chosen.length === 1 ? '' : 'e'} importieren</button>
+        <button type="button" className="primary" disabled={chosen.length === 0 && !withAccount} onClick={() => {
+          const account = withAccount && cash
+            ? { accountId: existingAccount?.id, name: accountName.trim(), balance: Math.round(accountBalance * 100) / 100, balanceDate: cash.date }
+            : undefined;
+          const parts = [`${chosen.length} Wertpapier${chosen.length === 1 ? '' : 'e'} mit ${chosen.reduce((s, d) => s + d.purchases.length, 0)} Buchungen importiert`];
+          if (account) parts.push(`Konto „${account.name}“: ${fmtEur(account.balance)}`);
+          onApply((s) => {
+            const next = applyTransactions(s, chosen);
+            return account ? applyBalance(next, account) : next;
+          }, parts.join(' · ') + '.');
+        }}>Importieren</button>
       </div>
     </>
   );

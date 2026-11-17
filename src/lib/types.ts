@@ -32,6 +32,12 @@ export interface Purchase {
   date: string; // YYYY-MM-DD
   quantity: number;
   totalCost: number; // EUR
+  /** execution price per unit in EUR, if known (e.g. from an import) */
+  price?: number;
+  /** fees in EUR, already included in totalCost */
+  fee?: number;
+  /** short note, e.g. "Sparplan" */
+  note?: string;
 }
 
 /** Daily record of the portfolio value, used for the history chart. */

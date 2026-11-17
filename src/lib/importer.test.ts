@@ -3,6 +3,7 @@ import {
   applyBalance, applyPositions, applyTransactions, autoMap, detectKind, matchHolding, missingFields, parseFile,
   readPositions, readStatement, readTransactions, transactionKind,
 } from './importer';
+import type { TransactionDraft } from './importer';
 import { summarize, valueHolding } from './portfolio';
 import { emptyState } from './types';
 
@@ -197,5 +198,95 @@ describe('accounts in the portfolio', () => {
     state = applyBalance(state, { accountId: id, name: 'egal', balance: 250.5, balanceDate: '2026-11-17' });
     expect(state.holdings).toHaveLength(1);
     expect(state.holdings[0]).toMatchObject({ name: 'Sparkasse', balance: 250.5, balanceDate: '2026-11-17' });
+  });
+});
+
+// Shape of Trade Republic's "Transaktionsexport" (2026): ISIN in a column called "symbol", fees in their own column,
+// prepayments for private-market orders and IPO subscriptions without shares. Personal data replaced.
+const TR = `"datetime","date","account_type","category","type","asset_class","name","symbol","shares","price","amount","fee","tax","currency","original_amount","original_currency","fx_rate","description","transaction_id","counterparty_name","counterparty_iban","payment_reference","mcc_code"
+"2026-07-01T02:04:39Z","2026-07-01","DEFAULT","CASH","TRANSFER_INBOUND","","Max Mustermann","","","","500.000000","","","EUR","","","","Incoming transfer from Max Mustermann (DE00000000000000000000)","t1","Max Mustermann","DE00000000000000000000","",""
+"2026-07-01T08:54:41Z","2026-07-01","DEFAULT","CASH","INTEREST_PAYMENT","","","","","","0.010000","","","EUR","","","","Interest payment","t2","","","",""
+"2026-07-02T13:57:01Z","2026-07-02","DEFAULT","TRADING","BUY","STOCK","Bloom Energy","US0937121079","0.1912040000","261.5000000000","-50.00","","","EUR","","","","Savings plan execution US0937121079 BLOOM ENERGY A, quantity: 0.191204","t3","","","",""
+"2026-08-03T08:22:53Z","2026-08-03","DEFAULT","CASH","PRIVATE_MARKET_BUY","PRIVATE_FUND","Private Equity","LU3176111881","","","-25.000000","","","EUR","","","","Private Markets pre-payment for buy order: x","t4","","","",""
+"2026-09-02T08:22:35Z","2026-09-02","DEFAULT","CASH","PRIVATE_MARKET_BUY","PRIVATE_FUND","Private Equity","LU3176111881","","","-25.000000","","","EUR","","","","Private Markets pre-payment for buy order: y","t5","","","",""
+"2026-09-21T15:46:03Z","2026-09-21","DEFAULT","TRADING","BUY","STOCK","2G Energy","DE000A0HL8N9","4.0916530000","61.1000000000","-250.00","-1.00","","EUR","","","","Buy trade DE000A0HL8N9 2G ENERGY AG, quantity: 4.091653","t6","","","",""
+"2026-10-01T19:52:00Z","2026-10-01","DEFAULT","TRADING","BUY","PRIVATE_FUND","Private Equity","LU3176111881","0.2299620000","108.7135000000","","","","EUR","","","","BUY LU3176111881","t7","","","",""
+"2026-11-02T15:05:22Z","2026-11-02","DEFAULT","TRADING","BUY","STOCK","Bloom Energy","US0937121079","0.2790170000","179.2000000000","-50.00","","","EUR","","","","Savings plan execution US0937121079 BLOOM ENERGY A, quantity: 0.279017","t8","","","",""
+"2026-11-11T19:49:22Z","2026-11-11","DEFAULT","CASH","IPO_SUBSCRIPTION","STOCK","Anthropic","US03703U1079","","","-99.000000","-1.00","","EUR","","","","IPO access pre-payment for subscription: z","t9","","","",""
+`;
+
+describe('Trade Republic transaction export', () => {
+  const file = parseFile(TR);
+
+  it('is recognised as transactions, with the ISIN found in the "symbol" column', () => {
+    expect(detectKind(file.header, file.rows)).toBe('transactions');
+    const m = autoMap(file.header, 'transactions', file.rows);
+    expect(file.header[m.isin]).toBe('symbol');
+    expect(file.header[m.fee]).toBe('fee');
+    expect(file.header[m.note]).toBe('description');
+    // Without the content the title alone is not enough – that was the original bug.
+    expect(autoMap(file.header, 'transactions').isin).toBe(-1);
+  });
+
+  it('groups trades per security with price, fee and savings-plan note', () => {
+    const r = readTransactions(file, autoMap(file.header, 'transactions', file.rows));
+    const byIsin: Record<string, TransactionDraft> = Object.fromEntries(r.drafts.map((d) => [d.isin, d]));
+    const bloom = byIsin.US0937121079;
+    expect(bloom.purchases.map((p) => [p.date, p.quantity, p.price, p.totalCost, p.note])).toEqual([
+      ['2026-07-02', 0.191204, 261.5, 50, 'Sparplan'],
+      ['2026-11-02', 0.279017, 179.2, 50, 'Sparplan'],
+    ]);
+    expect(bloom.invested).toBe(100);
+    expect(bloom.lastPrice).toEqual({ price: 179.2, date: '2026-11-02' });
+    // A one-off buy with a fee: the fee is part of the cost.
+    expect(byIsin.DE000A0HL8N9.purchases[0]).toMatchObject({ totalCost: 251, fee: 1, price: 61.1, note: undefined });
+    // The executed private-market buy has no amount: its cost comes from shares × price.
+    expect(byIsin.LU3176111881.purchases[0].totalCost).toBeCloseTo(25, 2);
+  });
+
+  it('reports open orders and the remaining cash', () => {
+    const r = readTransactions(file, autoMap(file.header, 'transactions', file.rows));
+    expect(r.pending).toEqual([
+      { name: 'Private Equity', isin: 'LU3176111881', amount: 25 }, // 2 × 25 paid, 1 executed
+      { name: 'Anthropic', isin: 'US03703U1079', amount: 100 }, // 99 + 1 fee
+    ]);
+    // 500 + 0.01 − 50 − 25 − 25 − 250 − 1 − 50 − 99 − 1
+    expect(r.cash).toEqual({ balance: -0.99, date: '2026-11-11' });
+  });
+
+  it('values every position with the last trade price and replaces an earlier import without ISIN', () => {
+    const m = autoMap(file.header, 'transactions', file.rows);
+    const { drafts } = readTransactions(file, m);
+    // An earlier, broken import had created "Bloom Energy" without ISIN and without cost.
+    let state = applyPositions(emptyState(), [{ key: 'x', name: 'Bloom Energy', quantity: 0.279017, warnings: [] }], '2026-11-17');
+    state = applyTransactions(state, drafts);
+    const blooms = state.holdings.filter((h) => h.name === 'Bloom Energy');
+    expect(blooms).toHaveLength(1);
+    expect(blooms[0].isin).toBe('US0937121079');
+    const v = valueHolding(blooms[0], state);
+    expect(v.quantity).toBeCloseTo(0.470221, 6);
+    expect(v.cost).toBe(100);
+    expect(v.unitPrice).toBe(179.2);
+    expect(v.priceUpdatedAt).toBe('2026-11-02T12:00:00.000Z');
+    expect(summarize(state).unpriced).toEqual([]);
+  });
+
+  it('does not replace a live quote or a newer manual price with the trade price', () => {
+    const m = autoMap(file.header, 'transactions', file.rows);
+    const { drafts } = readTransactions(file, m);
+    const state = emptyState();
+    state.quotes['isin:US0937121079'] = { eurPrice: 200, price: 200, currency: 'EUR', source: 'api', updatedAt: '2026-10-01T00:00:00Z' };
+    state.quotes['isin:DE000A0HL8N9'] = { eurPrice: 70, price: 70, currency: 'EUR', source: 'manual', updatedAt: '2026-11-15T00:00:00Z' };
+    const next = applyTransactions(state, drafts);
+    expect(next.quotes['isin:US0937121079'].eurPrice).toBe(200);
+    expect(next.quotes['isin:DE000A0HL8N9'].eurPrice).toBe(70);
+  });
+});
+
+describe('sales with fees and taxes', () => {
+  it('reduce the proceeds', () => {
+    const f = parseFile('Datum;Typ;ISIN;Stück;Kurs;Betrag;Gebühr;Steuer\n01.01.2026;Kauf;IE00B4L5Y983;10;10,00;-100,00;-1,00;\n01.06.2026;Verkauf;IE00B4L5Y983;10;12,00;120,00;-1,00;-4,75');
+    const d = readTransactions(f, autoMap(f.header, 'transactions', f.rows)).drafts[0];
+    expect(d.purchases.map((p) => p.totalCost)).toEqual([101, 114.25]);
   });
 });

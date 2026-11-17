@@ -52,6 +52,9 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'quantity', label: 'Stück', names: ['Stück', 'Stueck', 'Stück/Nominale', 'Nominale', 'Anzahl', 'Menge', 'Shares', 'Quantity'] },
     { key: 'amount', label: 'Betrag (gesamt)', names: ['Betrag', 'Wert', 'Gesamt', 'Gesamtbetrag', 'Amount', 'Total', 'Kurswert'] },
     { key: 'price', label: 'Kurs (je Stück)', names: ['Kurs', 'Preis', 'Price', 'Ausführungskurs'] },
+    { key: 'fee', label: 'Gebühr', names: ['Gebühr', 'Gebühren', 'Gebuehr', 'Fee', 'Fees', 'Provision', 'Kosten', 'Transaktionskosten'] },
+    { key: 'tax', label: 'Steuern', names: ['Steuer', 'Steuern', 'Tax', 'Taxes', 'Quellensteuer'] },
+    { key: 'note', label: 'Beschreibung', names: ['Beschreibung', 'Description', 'Notiz', 'Verwendungszweck', 'Buchungstext'] },
   ],
 };
 
@@ -115,11 +118,31 @@ function findColumn(header: string[], names: string[], used: Set<number>): numbe
   return -1;
 }
 
-export function autoMap(header: string[], kind: ImportKind): Mapping {
+/** A column whose filled cells are mostly ISINs, whatever its title (Trade Republic calls it "symbol"). */
+function findIsinColumn(rows: string[][], used: Set<number>): number {
+  const sample = rows.slice(0, 200);
+  const width = Math.max(0, ...sample.map((r) => r.length));
+  let best = -1;
+  let bestShare = 0.5;
+  for (let i = 0; i < width; i++) {
+    if (used.has(i)) continue;
+    const filled = sample.map((r) => (r[i] ?? '').trim()).filter((v) => v !== '');
+    if (filled.length === 0) continue;
+    const share = filled.filter((v) => ISIN_RE.test(v.toUpperCase())).length / filled.length;
+    if (share > bestShare) {
+      best = i;
+      bestShare = share;
+    }
+  }
+  return best;
+}
+
+export function autoMap(header: string[], kind: ImportKind, rows: string[][] = []): Mapping {
   const used = new Set<number>();
   const mapping: Mapping = {};
   for (const def of FIELDS[kind]) {
-    const i = findColumn(header, def.names, used);
+    let i = findColumn(header, def.names, used);
+    if (i < 0 && def.key === 'isin') i = findIsinColumn(rows, used);
     mapping[def.key] = i;
     if (i >= 0) used.add(i);
   }
@@ -134,11 +157,13 @@ export function missingFields(kind: ImportKind, mapping: Mapping): string[] {
     .map((req) => req.split('|').map(label).join(' oder '));
 }
 
-/** Best guess what the file contains, from its column titles. */
-export function detectKind(header: string[]): ImportKind {
-  const complete = (k: ImportKind) => missingFields(k, autoMap(header, k)).length === 0;
-  const tx = autoMap(header, 'transactions');
-  if (complete('transactions') && tx.isin >= 0) return 'transactions';
+/** Best guess what the file contains, from its column titles and, if given, its content. */
+export function detectKind(header: string[], rows: string[][] = []): ImportKind {
+  const complete = (k: ImportKind) => missingFields(k, autoMap(header, k, rows)).length === 0;
+  const tx = autoMap(header, 'transactions', rows);
+  // A column with words like "Kauf" or "BUY" in it is the strongest hint for a transaction list.
+  const hasTrades = tx.type >= 0 && rows.slice(0, 500).some((r) => transactionKind(r[tx.type] ?? '') !== undefined);
+  if (complete('transactions') && (tx.isin >= 0 || hasTrades)) return 'transactions';
   if (complete('positions')) return 'positions';
   if (complete('statement')) return 'statement';
   if (complete('transactions')) return 'transactions';
@@ -285,11 +310,37 @@ export interface TransactionDraft {
   purchases: Purchase[];
   /** remaining quantity after all buys and sells */
   quantity: number;
+  /** sum of all purchase amounts incl. fees */
+  invested: number;
+  /** price of the newest trade, as a stand-in until a live quote exists */
+  lastPrice?: { price: number; date: string };
   warnings: string[];
 }
 
-const BUY_RE = /kauf|buy|sparplan|savings|purchase|erwerb|einbuchung|zeichnung/i;
+/** Money paid for an order that has not produced shares yet (e.g. IPO subscriptions, private-market orders). */
+export interface PendingOrder {
+  name: string;
+  isin?: string;
+  amount: number;
+}
+
+export interface TransactionsResult {
+  drafts: TransactionDraft[];
+  skipped: number;
+  ignoredTypes: string[];
+  pending: PendingOrder[];
+  /**
+   * Cash left on the broker account: every amount, fee and tax in the file added up.
+   * Only right when the file reaches back to the opening of the account.
+   * Undefined when the file has no deposits (then it is no account history).
+   */
+  cash?: { balance: number; date: string };
+}
+
+const BUY_RE = /kauf|buy|sparplan|savings|purchase|erwerb|einbuchung|zeichnung|subscription/i;
 const SELL_RE = /verkauf|sell|sale|ausbuchung|veräußerung|veraeusserung/i;
+const DEPOSIT_RE = /transfer|inpayment|einzahlung|deposit|überweisung|ueberweisung|gutschrift|top.?up|interest|zins/i;
+const SAVINGS_RE = /savings plan|sparplan/i;
 
 /** 'sell' is tested first: "Verkauf" contains "kauf". */
 export function transactionKind(type: string): 'buy' | 'sell' | undefined {
@@ -298,10 +349,20 @@ export function transactionKind(type: string): 'buy' | 'sell' | undefined {
   return undefined;
 }
 
-export function readTransactions(file: ParsedFile, mapping: Mapping): { drafts: TransactionDraft[]; skipped: number; ignoredTypes: string[] } {
+const orZero = (n: number) => (Number.isFinite(n) ? n : 0);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export function readTransactions(file: ParsedFile, mapping: Mapping): TransactionsResult {
   const groups = new Map<string, TransactionDraft>();
   const ignored = new Set<string>();
+  const prepaid = new Map<string, PendingOrder>();
+  /** cost of executed trades listed without an amount: they were paid by an earlier prepayment */
+  const settledByPrepayment = new Map<string, number>();
   let skipped = 0;
+  let cashSum = 0;
+  let cashRows = 0;
+  let hasDeposits = false;
+  let lastDate = '';
   for (const row of file.rows) {
     const type = cell(row, mapping.type);
     const kind = transactionKind(type);
@@ -309,39 +370,85 @@ export function readTransactions(file: ParsedFile, mapping: Mapping): { drafts: 
     const isin = cleanIsin(cell(row, mapping.isin));
     const name = cell(row, mapping.name) || isin || '';
     const quantity = Math.abs(parseAmount(cell(row, mapping.quantity)));
+    const amount = parseAmount(cell(row, mapping.amount));
+    const feeRaw = parseAmount(cell(row, mapping.fee ?? -1));
+    const taxRaw = parseAmount(cell(row, mapping.tax ?? -1));
+    const fee = Math.abs(orZero(feeRaw));
+    const tax = Math.abs(orZero(taxRaw));
+    const price = Math.abs(parseAmount(cell(row, mapping.price)));
+    const note = cell(row, mapping.note ?? -1);
+
+    // Every amount moves money on the account; fees and taxes are separate (negative) columns.
+    if (Number.isFinite(amount)) {
+      cashSum += amount + orZero(feeRaw) + orZero(taxRaw);
+      cashRows++;
+      if (date && date > lastDate) lastDate = date;
+    }
+    if (!kind && DEPOSIT_RE.test(type)) hasDeposits = true;
+
     if (!kind) {
       if (type) ignored.add(type);
       skipped++;
       continue;
     }
-    if (!date || !name || !(quantity > 0)) {
+    const id = isin ?? normalizeHeader(name);
+    if (!(quantity > 0)) {
+      // Paid, but no shares yet: an order that is still open.
+      if (kind === 'buy' && Number.isFinite(amount) && name) {
+        const p = prepaid.get(id) ?? { name, isin, amount: 0 };
+        p.amount += Math.abs(amount) + fee;
+        prepaid.set(id, p);
+      }
       skipped++;
       continue;
     }
-    const amountCol = Math.abs(parseAmount(cell(row, mapping.amount)));
-    const price = Math.abs(parseAmount(cell(row, mapping.price)));
-    const total = Number.isFinite(amountCol) ? amountCol : Number.isFinite(price) ? price * quantity : NaN;
-    const id = isin ?? normalizeHeader(name);
-    const g = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, warnings: [] };
-    if (!Number.isFinite(total)) {
-      if (!g.warnings.length) g.warnings.push('Mindestens eine Buchung ohne Betrag – als 0 € übernommen.');
+    if (!date || !name) {
+      skipped++;
+      continue;
     }
-    g.purchases.push({ id: newId(), kind, date, quantity, totalCost: Number.isFinite(total) ? total : 0 });
+    const gross = Number.isFinite(amount) ? Math.abs(amount) : Number.isFinite(price) ? price * quantity : NaN;
+    if (!Number.isFinite(amount) && Number.isFinite(gross) && kind === 'buy') {
+      settledByPrepayment.set(id, (settledByPrepayment.get(id) ?? 0) + gross);
+    }
+    // Buys cost the price plus fees; sales bring the price minus fees and taxes.
+    const total = Number.isFinite(gross) ? round2(kind === 'buy' ? gross + fee : Math.max(0, gross - fee - tax)) : 0;
+    const g = groups.get(id) ?? { key: id, name, isin, purchases: [], quantity: 0, invested: 0, warnings: [] };
+    if (!Number.isFinite(gross) && !g.warnings.length) g.warnings.push('Mindestens eine Buchung ohne Betrag – als 0 € übernommen.');
+    const unitPrice = Number.isFinite(price) && price > 0 ? price : Number.isFinite(gross) ? gross / quantity : undefined;
+    g.purchases.push({
+      id: newId(), kind, date, quantity, totalCost: total,
+      price: unitPrice,
+      fee: fee > 0 ? fee : undefined,
+      note: SAVINGS_RE.test(note) || SAVINGS_RE.test(type) ? 'Sparplan' : undefined,
+    });
     g.quantity += kind === 'buy' ? quantity : -quantity;
+    if (kind === 'buy') g.invested += total;
+    if (unitPrice !== undefined && (!g.lastPrice || date >= g.lastPrice.date)) g.lastPrice = { price: unitPrice, date };
     groups.set(id, g);
   }
   const drafts = [...groups.values()].map((g) => {
     g.purchases.sort((a, b) => a.date.localeCompare(b.date));
+    g.invested = round2(g.invested);
     if (g.quantity < -1e-9) g.warnings.push('Mehr verkauft als gekauft – die Datei deckt vermutlich nicht alle Käufe ab.');
     return g;
   });
-  return { drafts, skipped, ignoredTypes: [...ignored] };
+  const pending = [...prepaid.entries()]
+    .map(([id, p]) => ({ ...p, amount: round2(p.amount - (settledByPrepayment.get(id) ?? 0)) }))
+    .filter((p) => p.amount > 0.005);
+  return {
+    drafts,
+    skipped,
+    ignoredTypes: [...ignored],
+    pending,
+    cash: hasDeposits && cashRows > 0 ? { balance: round2(cashSum), date: lastDate } : undefined,
+  };
 }
 
 // ---------- applying to the portfolio ----------
 
+/** Same ISIN, or – when one side has none, e.g. after an earlier import without ISIN – the same name. */
 const sameSecurity = (h: Holding, d: { isin?: string; name: string }): boolean =>
-  h.assetClass === 'stock' && (d.isin ? h.isin === d.isin : !h.isin && normalizeHeader(h.name) === normalizeHeader(d.name));
+  h.assetClass === 'stock' && (d.isin && h.isin ? h.isin === d.isin : normalizeHeader(h.name) === normalizeHeader(d.name));
 
 /** The existing holding a draft would update, if any. */
 export function matchHolding(state: PortfolioState, d: { isin?: string; name: string }): Holding | undefined {
@@ -373,15 +480,29 @@ export function applyPositions(state: PortfolioState, drafts: PositionDraft[], t
   return { ...state, holdings, quotes };
 }
 
-/** Takes over buy/sell histories. An existing position (same ISIN) gets its history replaced by the file's. */
+/**
+ * Takes over buy/sell histories. An existing position (same ISIN) gets its history replaced by the file's.
+ * The price of the newest trade stands in for a live quote until one exists.
+ */
 export function applyTransactions(state: PortfolioState, drafts: TransactionDraft[]): PortfolioState {
   const holdings = [...state.holdings];
+  const quotes = { ...state.quotes };
   for (const d of drafts) {
     const i = holdings.findIndex((h) => sameSecurity(h, d));
-    if (i >= 0) holdings[i] = { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases: d.purchases };
-    else holdings.push({ id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases: d.purchases });
+    const holding: Holding = i >= 0
+      ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases: d.purchases }
+      : { id: newId(), assetClass: 'stock', name: d.name, isin: d.isin, currency: 'EUR', purchases: d.purchases };
+    if (i >= 0) holdings[i] = holding;
+    else holdings.push(holding);
+    const key = quoteKey(holding);
+    const existing = key ? quotes[key] : undefined;
+    // Never replace a live quote, and never a manual price that is newer than the last trade.
+    const replace = !existing || (existing.source !== 'api' && existing.updatedAt.slice(0, 10) <= (d.lastPrice?.date ?? ''));
+    if (key && d.lastPrice && replace) {
+      quotes[key] = { eurPrice: d.lastPrice.price, price: d.lastPrice.price, currency: 'EUR', source: 'manual', updatedAt: `${d.lastPrice.date}T12:00:00.000Z` };
+    }
   }
-  return { ...state, holdings };
+  return { ...state, holdings, quotes };
 }
 
 /** Sets the balance of an account, creating the account when `accountId` is undefined. */
