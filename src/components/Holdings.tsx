@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { CategoryIcon, CATEGORY_COLOR, ClassIcon, CLASS_COLOR, Icon } from './ui';
+import { CategoryIcon, CATEGORY_COLOR, ClassIcon, CLASS_COLOR, DepotHeader, Icon, useDepotFolding } from './ui';
 import type { Update } from '../App';
 import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
-import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
+import { applyFifo, depotNames, groupByDepot, sortTransactions, valueHolding } from '../lib/portfolio';
 import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from '../lib/prices';
 import { rankSymbolMatches, searchTerm } from '../lib/symbols';
 import { pendingList } from '../lib/importer';
@@ -15,12 +15,14 @@ const FINENESS_PRESETS = [999.9, 999, 916.7, 900, 835, 750, 585];
 
 type Filter = Category | 'all';
 
-export function HoldingsView({ state, update, onAdd, onImport, focusId, initialFilter }: {
+export function HoldingsView({ state, update, onAdd, onImport, focusId, focusDepot, initialFilter }: {
   state: PortfolioState;
   update: Update;
   onAdd: () => void;
   onImport: () => void;
   focusId?: string;
+  /** depot to scroll to, e.g. after a click on it on the start page */
+  focusDepot?: string;
   initialFilter?: Category | null;
 }) {
   const [filter, setFilter] = useState<Filter>(initialFilter ?? 'all');
@@ -31,6 +33,11 @@ export function HoldingsView({ state, update, onAdd, onImport, focusId, initialF
   }, [focusId]);
   const active: Filter = filter !== 'all' && !classes.includes(filter) ? 'all' : filter;
   const shown = state.holdings.filter((h) => active === 'all' || categoryOf(h) === active);
+  const groups = groupByDepot(state, shown);
+  const scrolledTo = useRef<string | undefined>();
+  const depots = depotNames(state);
+  const folding = useDepotFolding(state.settings.collapsedDepots, (collapsedDepots) =>
+    update((s) => ({ ...s, settings: { ...s.settings, collapsedDepots } })));
 
   return (
     <>
@@ -61,13 +68,51 @@ export function HoldingsView({ state, update, onAdd, onImport, focusId, initialF
             ))}
           </div>
         )}
+        {groups.length > 1 && (
+          <div className="fold-all">
+            <button type="button" className="link" onClick={() => folding.setAll(groups.map((g) => g.depot), true)}>Alle Depots aufklappen</button>
+            <button type="button" className="link" onClick={() => folding.setAll(groups.map((g) => g.depot), false)}>Alle zuklappen</button>
+          </div>
+        )}
       </section>
-      {shown.map((h) =>
-        h.assetClass === 'cash'
-          ? <CashCard key={h.id} holding={h} update={update} focused={h.id === focusId} />
-          : <HoldingCard key={h.id} holding={h} state={state} update={update} focused={h.id === focusId} />,
-      )}
+      {groups.map((g) => {
+        // A position opened from elsewhere is shown even if its depot is folded.
+        const open = folding.isOpen(g.depot) || g.holdings.some((h) => h.id === focusId);
+        return (
+          <section key={g.depot} className="depot-group" aria-label={`Depot ${g.depot}`}
+            ref={(el) => { if (el && g.depot === focusDepot && scrolledTo.current !== focusDepot) { scrolledTo.current = focusDepot; el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }}>
+            <DepotHeader depot={g.depot} count={g.holdings.length} value={g.value} gain={g.gain} cost={g.cost} open={open} onToggle={() => folding.toggle(g.depot)} />
+            {open && (
+              <div className="depot-items">
+                {g.holdings.map((h) =>
+                  h.assetClass === 'cash'
+                    ? <CashCard key={h.id} holding={h} update={update} focused={h.id === focusId} depots={depots} />
+                    : <HoldingCard key={h.id} holding={h} state={state} update={update} focused={h.id === focusId} depots={depots} />,
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </>
+  );
+}
+
+/** Text field for the depot of a position, with the depots already in use as suggestions. */
+function DepotField({ holding: h, depots, update }: { holding: Holding; depots: string[]; update: Update }) {
+  const [value, setValue] = useState(h.account ?? '');
+  const listId = `depots-${h.id}`;
+  const save = () => {
+    const next = value.trim() || undefined;
+    if (next !== h.account) update((s) => ({ ...s, holdings: s.holdings.map((x) => (x.id === h.id ? { ...x, account: next } : x)) }));
+  };
+  return (
+    <label className="field type-field">
+      <span>Depot / Anbieter</span>
+      <input list={listId} placeholder="z. B. ING" value={value} onChange={(e) => setValue(e.target.value)} onBlur={save}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }} />
+      <datalist id={listId}>{depots.map((d) => <option key={d} value={d} />)}</datalist>
+    </label>
   );
 }
 
@@ -348,7 +393,7 @@ function CryptoPicker({ apiKey, onPick, children }: { apiKey: string; onPick: (m
 
 // ---------------- Existing holding ----------------
 
-function HoldingCard({ holding: h, state, update, focused }: { holding: Holding; state: PortfolioState; update: Update; focused?: boolean }) {
+function HoldingCard({ holding: h, state, update, focused, depots }: { holding: Holding; state: PortfolioState; update: Update; focused?: boolean; depots: string[] }) {
   const [open, setOpen] = useState(!!focused);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -468,6 +513,8 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
             <PurchaseFields draft={draft} set={setDraft} isMetal={isMetal} />
             <button type="submit">{draft.kind === 'sell' ? 'Verkauf erfassen' : 'Kauf erfassen'}</button>
           </form>
+
+          <DepotField holding={h} depots={depots} update={update} />
 
           {h.assetClass === 'stock' && (
             <label className="field type-field">
@@ -599,7 +646,7 @@ function SymbolEditor({ holding: h, apiKey, onSave }: { holding: Holding; apiKey
 }
 
 /** A bank account: just a balance that can be corrected by hand. */
-function CashCard({ holding: h, update, focused }: { holding: Holding; update: Update; focused?: boolean }) {
+function CashCard({ holding: h, update, focused, depots }: { holding: Holding; update: Update; focused?: boolean; depots: string[] }) {
   const [open, setOpen] = useState(!!focused);
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
@@ -656,6 +703,7 @@ function CashCard({ holding: h, update, focused }: { holding: Holding; update: U
             {error && <div className="field-error">{error}</div>}
             <p className="muted small">Oder über „Datei importieren“ aus einem Kontoexport deiner Bank übernehmen.</p>
           </form>
+          <DepotField holding={h} depots={depots} update={update} />
           <div className="inline end">
             <button className="danger" onClick={() => {
               if (confirm(`Konto „${h.name}“ löschen?`)) update((s) => ({ ...s, holdings: s.holdings.filter((x) => x.id !== h.id) }));

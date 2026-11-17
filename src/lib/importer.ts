@@ -679,13 +679,13 @@ export const brokerBalance = (b: BrokerAccount, withPending: boolean): number =>
  */
 export function applyBrokerAccount(
   state: PortfolioState,
-  opts: { accountId?: string; name: string; events: CashEvent[]; withPending: boolean },
+  opts: { accountId?: string; name: string; events: CashEvent[]; withPending: boolean; depot?: string },
 ): PortfolioState {
   const existing = opts.accountId ? state.holdings.find((h) => h.id === opts.accountId) : undefined;
   const next = foldCashEvents(existing?.broker ?? emptyBroker(), opts.events);
   const broker: BrokerAccount = { refs: next.refs, cash: next.cash, pending: next.pending, withPending: opts.withPending };
   const lastDate = opts.events.reduce((d, e) => (e.date > d ? e.date : d), existing?.balanceDate ?? '');
-  const fields = { broker, balance: brokerBalance(broker, opts.withPending), balanceDate: lastDate || existing?.balanceDate };
+  const fields = { broker, balance: brokerBalance(broker, opts.withPending), balanceDate: lastDate || existing?.balanceDate, account: opts.depot ?? existing?.account };
   if (existing) {
     return { ...state, holdings: state.holdings.map((h) => (h.id === existing.id ? { ...h, ...fields } : h)) };
   }
@@ -853,15 +853,15 @@ export function applyTransactions(state: PortfolioState, drafts: TransactionDraf
 /** Sets the balance of an account, creating the account when `accountId` is undefined. */
 export function applyBalance(
   state: PortfolioState,
-  account: { accountId?: string; name: string; iban?: string; balance: number; balanceDate: string },
+  account: { accountId?: string; name: string; iban?: string; balance: number; balanceDate: string; depot?: string },
 ): PortfolioState {
-  const { accountId, name, iban, balance, balanceDate } = account;
+  const { accountId, name, iban, balance, balanceDate, depot } = account;
   if (accountId) {
     return {
       ...state,
-      holdings: state.holdings.map((h) => (h.id === accountId ? { ...h, balance, balanceDate, iban: iban ?? h.iban } : h)),
+      holdings: state.holdings.map((h) => (h.id === accountId ? { ...h, balance, balanceDate, iban: iban ?? h.iban, account: depot ?? h.account } : h)),
     };
   }
-  const holding: Holding = { id: newId(), assetClass: 'cash', name, iban, balance, balanceDate, purchases: [] };
+  const holding: Holding = { id: newId(), assetClass: 'cash', name, iban, balance, balanceDate, account: depot, purchases: [] };
   return { ...state, holdings: [...state.holdings, holding] };
 }

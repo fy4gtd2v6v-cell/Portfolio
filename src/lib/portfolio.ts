@@ -235,3 +235,50 @@ export function withSnapshot(state: PortfolioState, date: string): PortfolioStat
   const rest = history.filter((h) => h.date !== date);
   return { ...state, history: [...rest, snap].sort((a, b) => a.date.localeCompare(b.date)) };
 }
+
+// ---------- depots ----------
+
+/** Group for positions without a depot, e.g. ones entered by hand. */
+export const NO_DEPOT = 'Ohne Depot';
+
+/** The depot a position belongs to. A cash account without one is its own depot (its name, e.g. "Trade Republic"). */
+export function depotOf(h: Holding): string {
+  return h.account?.trim() || (h.assetClass === 'cash' ? h.name.trim() : NO_DEPOT);
+}
+
+export interface DepotSummary {
+  depot: string;
+  holdings: Holding[];
+  /** open positions (and accounts) */
+  count: number;
+  value: number;
+  /** cost of priced investments, accounts excluded */
+  cost: number;
+  gain: number;
+}
+
+/** Positions grouped by depot, largest first; positions without depot last. */
+export function groupByDepot(state: PortfolioState, holdings: Holding[] = state.holdings): DepotSummary[] {
+  const groups = new Map<string, DepotSummary>();
+  for (const h of holdings) {
+    const depot = depotOf(h);
+    const g = groups.get(depot) ?? { depot, holdings: [], count: 0, value: 0, cost: 0, gain: 0 };
+    g.holdings.push(h);
+    const v = valueHolding(h, state);
+    if (!v.closed) {
+      g.count++;
+      g.value += v.value ?? 0;
+      if (h.assetClass !== 'cash' && v.value !== undefined) {
+        g.cost += v.cost;
+        g.gain += v.value - v.cost;
+      }
+    }
+    groups.set(depot, g);
+  }
+  return [...groups.values()].sort((a, b) => (a.depot === NO_DEPOT ? 1 : b.depot === NO_DEPOT ? -1 : b.value - a.value || a.depot.localeCompare(b.depot, 'de')));
+}
+
+/** All depot names in use, for suggestions. */
+export function depotNames(state: PortfolioState): string[] {
+  return [...new Set(state.holdings.map((h) => h.account?.trim()).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'de'));
+}

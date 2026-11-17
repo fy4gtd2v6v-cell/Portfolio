@@ -41,7 +41,9 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
 - **Mehrere Depots**: Jede Position merkt sich ihr Depot (z. B. ING, Trade Republic, Flexgold; beim
   Import vorausgefüllt). Ein Import gleicht nur innerhalb desselben Depots ab – dasselbe Wertpapier in
   zwei Depots bleibt zwei Positionen, die sich denselben Kurs teilen. Getestet mit der ING-
-  „Depotübersicht“ (CSV mit Vorspann, Windows-1252).
+  „Depotübersicht“ (CSV mit Vorspann, Windows-1252). Positionen und Livekurse sind nach Depot gruppiert
+  (mit Summen, zuklappbar, Zustand wird gespeichert); die Startseite zeigt die Aufteilung nach Depot.
+  Das Depot lässt sich bei jeder Position auch von Hand setzen.
 - **Edelmetall-Konten** (z. B. Flexgold): Der Transaktionsverlauf als Excel-Datei (.xlsx) oder CSV
   wird je Metall zu einer Position in Gramm mit allen Käufen; Ein- und Auszahlungen bilden das Guthaben.
   Excel-Dateien werden ohne Zusatzbibliothek direkt im Browser entpackt.

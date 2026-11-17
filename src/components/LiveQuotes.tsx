@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Update } from '../App';
-import { CategoryIcon, CATEGORY_COLOR, Icon } from './ui';
-import { HoldingValuation, valueHolding } from '../lib/portfolio';
+import { CategoryIcon, CATEGORY_COLOR, DepotHeader, Icon, useDepotFolding } from './ui';
+import { depotOf, groupByDepot, HoldingValuation, valueHolding } from '../lib/portfolio';
 import { metalChangePct } from '../lib/prices';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
 import { CATEGORIES, Category, CATEGORY_LABEL, categoryOf, Holding, PortfolioState, quoteKey } from '../lib/types';
@@ -112,6 +112,13 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
       return (typeof x === 'string' ? x.localeCompare(y as string, 'de') : x - (y as number)) * sort.dir;
     });
 
+  // Group the (sorted) rows by depot; the groups follow the depot totals, largest first.
+  const byDepot = new Map(groupByDepot(state, shown.map((r) => r.h)).map((g, i) => [g.depot, { ...g, order: i, rows: [] as Row[] }]));
+  for (const r of shown) byDepot.get(depotOf(r.h))!.rows.push(r);
+  const depotGroups = [...byDepot.values()].sort((a, b) => a.order - b.order);
+  const folding = useDepotFolding(state.settings.collapsedDepots, (collapsedDepots) =>
+    update((s) => ({ ...s, settings: { ...s.settings, collapsedDepots } })));
+
   const dayTotal = shown.reduce((s, r) => s + (r.dayGain ?? 0), 0);
   const dayBase = shown.reduce((s, r) => s + (r.dayGain !== undefined && r.v.value !== undefined ? r.v.value - r.dayGain : 0), 0);
   const dayKnown = shown.filter((r) => r.dayGain !== undefined).length;
@@ -192,67 +199,75 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
                 {sortHead('gain', 'G/V gesamt', true)}
               </tr>
             </thead>
-            <tbody>
-              {shown.map(({ h, v, changePct, dayGain }) => {
-                const gainCls = v.gain === undefined ? '' : v.gain > 0 ? 'pos' : v.gain < 0 ? 'neg' : '';
-                const dayCls = changePct === undefined ? '' : changePct > 0 ? 'pos' : changePct < 0 ? 'neg' : '';
-                return (
-                  <tr
-                    key={h.id}
-                    className="clickable"
-                    tabIndex={0}
-                    title="Position öffnen"
-                    onClick={() => onOpenHolding(h.id)}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpenHolding(h.id))}
-                  >
-                    <td>
-                      <div className="pos-name"><CategoryIcon category={categoryOf(h)} />
-                        <div>
-                          {h.name}
-                          <div className="muted small pos-sub">
-                            {CATEGORY_LABEL[categoryOf(h)]}
-                            {h.account && ` · ${h.account}`}
-                            {(h.symbol || h.isin) && ` · ${h.symbol ?? h.isin}`}
-                            {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+            {depotGroups.map((g) => {
+              const open = folding.isOpen(g.depot);
+              return (
+                <tbody key={g.depot} className="depot-tbody">
+                  {depotGroups.length > 1 && (
+                    <tr><DepotHeader as="td" depot={g.depot} count={g.rows.length} value={g.value} gain={g.gain} cost={g.cost} open={open} onToggle={() => folding.toggle(g.depot)} /></tr>
+                  )}
+                  {(open || depotGroups.length === 1) && g.rows.map(({ h, v, changePct, dayGain }) => {
+                    const gainCls = v.gain === undefined ? '' : v.gain > 0 ? 'pos' : v.gain < 0 ? 'neg' : '';
+                    const dayCls = changePct === undefined ? '' : changePct > 0 ? 'pos' : changePct < 0 ? 'neg' : '';
+                    return (
+                      <tr
+                        key={h.id}
+                        className="clickable"
+                        tabIndex={0}
+                        title="Position öffnen"
+                        onClick={() => onOpenHolding(h.id)}
+                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpenHolding(h.id))}
+                      >
+                        <td>
+                          <div className="pos-name"><CategoryIcon category={categoryOf(h)} />
+                            <div>
+                              {h.name}
+                              <div className="muted small pos-sub">
+                                {CATEGORY_LABEL[categoryOf(h)]}
+                                {h.account && ` · ${h.account}`}
+                                {(h.symbol || h.isin) && ` · ${h.symbol ?? h.isin}`}
+                                {h.metal && ` · ${fmtNum(h.fineness ?? 1000, 1)}‰`}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="num">
-                      {v.unitPrice !== undefined ? (
-                        <>
-                          <span className={`price ${flash[h.id] ? `flash-${flash[h.id]}` : ''}`}>{fmtEur(v.unitPrice)}{h.assetClass === 'metal' && '/g'}</span>
-                          <div className="muted small">{v.priceSource === 'manual' ? 'manuell, ' : ''}{fmtDate(v.priceUpdatedAt)}</div>
-                        </>
-                      ) : <span className="muted">kein Kurs</span>}
-                    </td>
-                    <td className="num" title={changeHint(h, state)}>
-                      {changePct !== undefined ? (
-                        <>
-                          <span className={`pill ${dayCls}`}>{changePct > 0 ? '▲' : changePct < 0 ? '▼' : ''} {fmtPct(changePct)}</span>
-                          {dayGain !== undefined && <div className={`small ${dayCls}`}>{fmtSignedEur(dayGain)}</div>}
-                        </>
-                      ) : <span className="muted">–</span>}
-                    </td>
-                    <td className="num">
-                      {h.assetClass === 'metal' ? (
-                        <>
-                          {fmtNum(v.quantity, 4)} g
-                          {(h.fineness ?? 1000) < 1000 && <div className="muted small">fein {fmtNum(v.fineGrams ?? 0, 4)} g</div>}
-                        </>
-                      ) : (
-                        fmtNum(v.quantity, 8)
-                      )}
-                    </td>
-                    <td className="num strong">{v.value !== undefined ? fmtEur(v.value) : '–'}</td>
-                    <td className="num">
-                      {v.gain !== undefined ? <span className={gainCls}>{fmtSignedEur(v.gain)}</span> : '–'}
-                      {v.gainPct !== undefined && <div className={`small ${gainCls}`}>{fmtPct(v.gainPct)}</div>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                        </td>
+                        <td className="num">
+                          {v.unitPrice !== undefined ? (
+                            <>
+                              <span className={`price ${flash[h.id] ? `flash-${flash[h.id]}` : ''}`}>{fmtEur(v.unitPrice)}{h.assetClass === 'metal' && '/g'}</span>
+                              <div className="muted small">{v.priceSource === 'manual' ? 'manuell, ' : ''}{fmtDate(v.priceUpdatedAt)}</div>
+                            </>
+                          ) : <span className="muted">kein Kurs</span>}
+                        </td>
+                        <td className="num" title={changeHint(h, state)}>
+                          {changePct !== undefined ? (
+                            <>
+                              <span className={`pill ${dayCls}`}>{changePct > 0 ? '▲' : changePct < 0 ? '▼' : ''} {fmtPct(changePct)}</span>
+                              {dayGain !== undefined && <div className={`small ${dayCls}`}>{fmtSignedEur(dayGain)}</div>}
+                            </>
+                          ) : <span className="muted">–</span>}
+                        </td>
+                        <td className="num">
+                          {h.assetClass === 'metal' ? (
+                            <>
+                              {fmtNum(v.quantity, 4)} g
+                              {(h.fineness ?? 1000) < 1000 && <div className="muted small">fein {fmtNum(v.fineGrams ?? 0, 4)} g</div>}
+                            </>
+                          ) : (
+                            fmtNum(v.quantity, 8)
+                          )}
+                        </td>
+                        <td className="num strong">{v.value !== undefined ? fmtEur(v.value) : '–'}</td>
+                        <td className="num">
+                          {v.gain !== undefined ? <span className={gainCls}>{fmtSignedEur(v.gain)}</span> : '–'}
+                          {v.gainPct !== undefined && <div className={`small ${gainCls}`}>{fmtPct(v.gainPct)}</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
           </table>
         </div>
         <p className="muted small">

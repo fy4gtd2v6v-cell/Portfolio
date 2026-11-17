@@ -87,6 +87,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
   const [recoveryCode, setRecoveryCode] = useState<string | undefined>(initialRecoveryCode);
   const [tab, setTab] = useState<Tab>('home');
   const [classFilter, setClassFilter] = useState<Category | null>(null);
+  const [focusDepot, setFocusDepot] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
   const [focusId, setFocusId] = useState<string | undefined>();
   const closeAdd = useCallback(() => setAdding(false), []);
@@ -201,7 +202,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
         <nav className="tabs" aria-label="Bereiche">
           {TABS.map(([id, label, TabIcon]) => (
             <button key={id} className={tab === id ? 'tab active' : 'tab'} aria-current={tab === id ? 'page' : undefined}
-              onClick={() => { setTab(id); setFocusId(undefined); setClassFilter(null); }}>
+              onClick={() => { setTab(id); setFocusId(undefined); setFocusDepot(undefined); setClassFilter(null); }}>
               <TabIcon /><span>{label}</span>
             </button>
           ))}
@@ -243,13 +244,20 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
       <main>
         {tab === 'home' && (
           <Home state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding}
-            onOpenCategory={(c) => { setClassFilter(c); setFocusId(undefined); setTab(c === 'cash' ? 'holdings' : 'live'); }} />
+            onOpenCategory={(c) => { setClassFilter(c); setFocusId(undefined); setTab(c === 'cash' ? 'holdings' : 'live'); }}
+            onOpenDepot={(depot) => {
+              update((s) => ({ ...s, settings: { ...s.settings, collapsedDepots: (s.settings.collapsedDepots ?? []).filter((d) => d !== depot) } }));
+              setClassFilter(null);
+              setFocusId(undefined);
+              setFocusDepot(depot);
+              setTab('holdings');
+            }} />
         )}
         {tab === 'live' && (
           <LiveQuotes state={state} update={update} live={{ lastAt: lastLive.at, error: lastLive.error, busy: refreshing } satisfies LiveStatus}
             onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />
         )}
-        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} onImport={() => setImporting(true)} focusId={focusId} initialFilter={classFilter} />}
+        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} onImport={() => setImporting(true)} focusId={focusId} focusDepot={focusDepot} initialFilter={classFilter} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
       </main>

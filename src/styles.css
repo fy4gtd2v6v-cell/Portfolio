@@ -588,3 +588,32 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 .type-field { max-width: 260px; margin-top: 14px; }
 
 .depot-field { max-width: 420px; }
+
+/* ---------- depot groups ---------- */
+.depot-group { display: flex; flex-direction: column; gap: 12px; }
+button.depot-header {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "chev name value" "chev count gain";
+  align-items: center; gap: 0 12px; width: 100%; text-align: left; font-weight: 400;
+  padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow);
+}
+button.depot-header:hover:not(:disabled) { background: var(--brand-soft); }
+.depot-header .chevron { grid-area: chev; display: inline-block; transform: rotate(0deg); transition: transform .15s; color: var(--brand); font-size: 14px; }
+.depot-header .chevron.open { transform: rotate(90deg); }
+.depot-name { grid-area: name; font-weight: 650; font-size: 17px; }
+.depot-count { grid-area: count; }
+.depot-value { grid-area: value; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+.depot-gain { grid-area: gain; text-align: right; font-variant-numeric: tabular-nums; }
+.depot-items { display: flex; flex-direction: column; gap: 12px; padding-left: 14px; border-left: 2px solid var(--border); margin-left: 8px; }
+.fold-all { display: flex; gap: 8px; flex-basis: 100%; }
+td.depot-cell { padding: 14px 0 6px; border-bottom: none; }
+td.depot-cell button.depot-header { box-shadow: none; background: var(--surface-2); }
+tbody.depot-tbody tr:hover { background: none; }
+.depot-list { display: flex; flex-direction: column; gap: 4px; }
+button.depot-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; width: 100%; text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 10px; font-weight: 400; }
+button.depot-row:hover:not(:disabled) { background: var(--brand-soft); }
+.depot-row .bar-track { grid-column: 1 / -1; height: 6px; display: block; }
+.depot-row .bar-fill { display: block; background: var(--brand); border-radius: 6px; }
+.depot-row .muted { font-size: 13px; }
+
+.home-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.depot-group { scroll-margin-top: 96px; }

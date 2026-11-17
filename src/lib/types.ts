@@ -151,6 +151,8 @@ export interface Settings {
   metalMode: 'live' | 'manual';
   /** refresh crypto and metal prices every minute while the app is open */
   autoRefresh: boolean;
+  /** depots whose positions are folded away in the lists */
+  collapsedDepots?: string[];
 }
 
 export interface PortfolioState {

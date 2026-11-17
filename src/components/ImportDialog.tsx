@@ -142,7 +142,7 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
         </div>
       </div>
 
-      {kind !== 'statement' && (
+      {(kind !== 'statement' || !!detectProvider(file) || depot) && (
         <label className="field depot-field">
           <span>Depot / Anbieter</span>
           <input placeholder="z. B. ING, Trade Republic, Flexgold" value={depot} onChange={(e) => setDepot(e.target.value)} />
@@ -170,7 +170,7 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
       {missing.length > 0 ? (
         <div className="banner warn">Bitte noch zuordnen: {missing.join(', ')}.</div>
       ) : kind === 'statement' ? (
-        <StatementPreview file={file} mapping={mapping} state={state} onApply={onApply} />
+        <StatementPreview key={account} account={account} file={file} mapping={mapping} state={state} onApply={onApply} />
       ) : kind === 'positions' ? (
         <PositionsPreview key={account} account={account} file={file} mapping={mapping} state={state} onApply={onApply} />
       ) : (
@@ -184,7 +184,7 @@ function Preview({ loaded, kind, mapping, state, onKind, onMapping, onBack, onAp
 type Apply = (change: (s: PortfolioState) => PortfolioState, message: string) => void;
 type PreviewProps = { file: ParsedFile; mapping: Mapping; state: PortfolioState; onApply: Apply; account?: string };
 
-function StatementPreview({ file, mapping, state, onApply }: PreviewProps) {
+function StatementPreview({ file, mapping, state, onApply, account: depot }: PreviewProps) {
   const r = useMemo(() => readStatement(file, mapping), [file, mapping]);
   const accounts = state.holdings.filter((h) => h.assetClass === 'cash');
   const byIban = r.iban ? accounts.find((a) => a.iban === r.iban) : undefined;
@@ -243,7 +243,7 @@ function StatementPreview({ file, mapping, state, onApply }: PreviewProps) {
       </p>
       <div className="inline">
         <button type="button" className="primary" disabled={!ready} onClick={() => {
-          const account = { accountId: target === NEW ? undefined : target, name: name.trim(), iban: r.iban, balance, balanceDate: r.to ?? today() };
+          const account = { accountId: target === NEW ? undefined : target, name: name.trim(), iban: r.iban, balance, balanceDate: r.to ?? today(), depot };
           onApply((s) => applyBalance(s, account), `Konto „${existing?.name ?? name.trim()}“: Kontostand ${fmtEur(balance)} übernommen.`);
         }}>Kontostand übernehmen</button>
       </div>
@@ -476,7 +476,7 @@ function TransactionsPreview({ file, mapping, state, onApply, metals, account }:
       <div className="inline">
         <button type="button" className="primary" disabled={newTrades === 0 && !replace && !withAccount && unlabeled === 0} onClick={() => {
           const drafts = chosen.map((p) => p.draft);
-          const cash = withAccount ? { accountId: existingAccount?.id, name: accountName.trim(), events: cashEvents, withPending: takePending } : undefined;
+          const cash = withAccount ? { accountId: existingAccount?.id, name: accountName.trim(), events: cashEvents, withPending: takePending, depot: account } : undefined;
           const parts = [`${newTrades} neue Buchung${newTrades === 1 ? '' : 'en'}${account ? ` (${account})` : ''} importiert`];
           if (knownTrades > 0) parts.push(`${knownTrades} schon vorhanden`);
           if (unlabeled > 0) parts.push(`${unlabeled} Position${unlabeled === 1 ? '' : 'en'} dem Depot „${account}“ zugeordnet`);

@@ -3,7 +3,8 @@ import { Donut, Slice } from './Donut';
 import { Hero } from './Hero';
 import { HistoryChart } from './HistoryChart';
 import { CategoryIcon, CATEGORY_COLOR, Icon } from './ui';
-import { summarize, valueHolding } from '../lib/portfolio';
+import { groupByDepot, summarize, valueHolding } from '../lib/portfolio';
+import { fmtEur, fmtSignedEur } from '../lib/format';
 import { CATEGORIES, Category, CATEGORY_LABEL, categoryOf, PortfolioState } from '../lib/types';
 
 /** How many single positions the pie shows before the rest is folded into "Sonstige". */
@@ -11,6 +12,7 @@ const MAX_POSITION_SLICES = 7;
 /** Lighter steps of a category colour, so neighbouring positions of one category stay distinguishable. */
 const TINTS = [0, 28, 50];
 const OTHER = '__other__';
+const share = new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 });
 
 interface Props {
   state: PortfolioState;
@@ -18,11 +20,13 @@ interface Props {
   onAdd: () => void;
   onOpenCategory: (c: Category) => void;
   onOpenHolding: (id: string) => void;
+  onOpenDepot: (depot: string) => void;
 }
 
 /** Start page: total wealth, its split as a pie chart, and its development over time. */
-export function Home({ state, onGoto, onAdd, onOpenCategory, onOpenHolding }: Props) {
+export function Home({ state, onGoto, onAdd, onOpenCategory, onOpenHolding, onOpenDepot }: Props) {
   const s = summarize(state);
+  const depots = groupByDepot(state).filter((d) => d.count > 0);
   const [mode, setMode] = useState<'class' | 'position'>('class');
 
   const positionSlices = useMemo<Slice[]>(() => {
@@ -106,10 +110,36 @@ export function Home({ state, onGoto, onAdd, onOpenCategory, onOpenHolding }: Pr
           </p>
         </section>
 
-        <section className="card">
-          <div className="card-head"><h2>Vermögensverlauf</h2></div>
-          <HistoryChart history={state.history} />
-        </section>
+        <div className="home-side">
+          <section className="card">
+            <div className="card-head"><h2>Vermögensverlauf</h2></div>
+            <HistoryChart history={state.history} />
+          </section>
+
+          {depots.length > 1 && (
+            <section className="card">
+              <div className="card-head"><h2>Nach Depot</h2></div>
+              <div className="depot-list">
+                {depots.map((d) => {
+                  const part = s.totalValue > 0 ? d.value / s.totalValue : 0;
+                  return (
+                    <button type="button" key={d.depot} className="depot-row" onClick={() => onOpenDepot(d.depot)} title={`Positionen im Depot ${d.depot} anzeigen`}>
+                      <span>
+                        <strong>{d.depot}</strong>
+                        <span className="muted"> · {d.count} Position{d.count === 1 ? '' : 'en'}</span>
+                      </span>
+                      <span className="num">
+                        <strong>{fmtEur(d.value)}</strong> <span className="muted">· {share.format(part)}</span>
+                        {d.cost > 0 && <span className={`small ${d.gain > 0.005 ? 'pos' : d.gain < -0.005 ? 'neg' : 'muted'}`}> · {fmtSignedEur(d.gain)}</span>}
+                      </span>
+                      <span className="bar-track"><span className="bar-fill" style={{ width: `${part * 100}%` }} /></span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
     </>
   );
