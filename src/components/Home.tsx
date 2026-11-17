@@ -4,7 +4,7 @@ import { Hero } from './Hero';
 import { HistoryChart } from './HistoryChart';
 import { ClassIcon, CLASS_COLOR, Icon } from './ui';
 import { summarize, valueHolding } from '../lib/portfolio';
-import { AssetClass, CLASS_LABEL, PortfolioState } from '../lib/types';
+import { ASSET_CLASSES, AssetClass, CLASS_LABEL, PortfolioState } from '../lib/types';
 
 /** How many single positions the pie shows before the rest is folded into "Sonstige". */
 const MAX_POSITION_SLICES = 7;
@@ -26,7 +26,7 @@ export function Home({ state, onGoto, onAdd, onOpenClass, onOpenHolding }: Props
   const [mode, setMode] = useState<'class' | 'position'>('class');
 
   const positionSlices = useMemo<Slice[]>(() => {
-    const order: AssetClass[] = ['metal', 'stock', 'crypto'];
+    const order = ASSET_CLASSES;
     const valued = state.holdings
       .map((h) => ({ h, value: valueHolding(h, state).value ?? 0 }))
       .filter((x) => x.value > 0)
