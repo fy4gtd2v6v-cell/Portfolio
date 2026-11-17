@@ -408,8 +408,8 @@ function TransactionsPreview({ file, mapping, state, onApply, metals }: PreviewP
       )}
       {repaired.length > 0 && !replace && (
         <div className="banner warn">
-          {repaired.length === 1 ? 'Eine Position hat' : `${repaired.length} Positionen haben`} bisher nur Käufe ohne Kaufpreis (0 €) – vermutlich
-          aus einem fehlerhaften früheren Import: {repaired.map((p) => p.holding!.name).join(', ')}. Diese Käufe werden durch die aus der Datei ersetzt.
+          {repaired.length === 1 ? 'Eine Position stammt' : `${repaired.length} Positionen stammen`} bisher nur aus einem Depotbestand oder einem
+          fehlerhaften früheren Import: {repaired.map((p) => p.holding!.name).join(', ')}. Ihr Bestand wird durch die Käufe aus der Datei ersetzt.
           Alle anderen Positionen werden nur ergänzt.
         </div>
       )}

@@ -173,6 +173,17 @@ describe('security transactions', () => {
     expect(v.realized).toBeCloseTo(400 - 4 * 90, 9); // FIFO: sold from the first lot
   });
 
+  it('replaces a depot snapshot of the same security instead of adding to it', () => {
+    const d = parseFile(DEPOT);
+    let state = applyPositions(emptyState(), readPositions(d, autoMap(d.header, 'positions')).drafts, '2026-11-17');
+    const t = parseFile(TRANSACTIONS);
+    const plan = planTransactions(state, readTransactions(t, autoMap(t.header, 'transactions', t.rows)).drafts);
+    expect(plan.find((p) => p.draft.isin === 'IE00B4L5Y983')!.replaced).toBe(true);
+    state = applyTransactions(state, readTransactions(t, autoMap(t.header, 'transactions', t.rows)).drafts);
+    const etf = state.holdings.find((h) => h.isin === 'IE00B4L5Y983')!;
+    expect(valueHolding(etf, state).quantity).toBeCloseTo(8.5, 9);
+  });
+
   it('warns when more was sold than bought', () => {
     const f = parseFile('Datum;Typ;ISIN;Stück;Betrag\n01.01.2026;Verkauf;IE00B4L5Y983;5;500,00');
     expect(readTransactions(f, autoMap(f.header, 'transactions')).drafts[0].warnings[0]).toMatch(/Mehr verkauft/);

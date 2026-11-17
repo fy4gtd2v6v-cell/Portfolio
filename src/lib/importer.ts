@@ -710,7 +710,8 @@ export function applyPositions(state: PortfolioState, drafts: PositionDraft[], t
   const holdings = [...state.holdings];
   const quotes = { ...state.quotes };
   for (const d of drafts) {
-    const lot: Purchase = { id: newId(), kind: 'buy', date: today, quantity: d.quantity, totalCost: d.cost ?? 0 };
+    // Marked as a snapshot: a transaction history imported later replaces it instead of adding to it.
+    const lot: Purchase = { id: newId(), kind: 'buy', date: today, quantity: d.quantity, totalCost: d.cost ?? 0, ref: `snapshot:${today}`, note: 'Depotbestand' };
     const i = holdings.findIndex((h) => sameSecurity(h, d));
     const holding: Holding = i >= 0
       ? { ...holdings[i], isin: d.isin ?? holdings[i].isin, purchases: [lot] }
@@ -742,7 +743,7 @@ export interface TradePlan {
  * replaced automatically, everything else is merged.
  */
 export function hasOnlyBrokenLots(h: Holding): boolean {
-  return h.purchases.length > 0 && h.purchases.every((p) => !p.ref && p.totalCost === 0);
+  return h.purchases.length > 0 && h.purchases.every((p) => (!p.ref && p.totalCost === 0) || p.ref?.startsWith('snapshot:'));
 }
 
 /**
