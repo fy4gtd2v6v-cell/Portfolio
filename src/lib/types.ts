@@ -1,4 +1,6 @@
-export type AssetClass = 'metal' | 'stock' | 'crypto';
+export type AssetClass = 'metal' | 'stock' | 'crypto' | 'cash';
+/** Display and chart order. */
+export const ASSET_CLASSES: AssetClass[] = ['metal', 'stock', 'crypto', 'cash'];
 export type Metal = 'gold' | 'silver' | 'platinum' | 'palladium';
 export type Currency = 'EUR' | 'USD' | 'GBP' | 'CHF';
 
@@ -16,6 +18,7 @@ export const CLASS_LABEL: Record<AssetClass, string> = {
   metal: 'Edelmetalle',
   stock: 'Aktien & ETFs',
   crypto: 'Krypto',
+  cash: 'Konten',
 };
 
 /**
@@ -54,6 +57,14 @@ export interface Holding {
   currency?: Currency;
   /** crypto only: CoinGecko id, e.g. "bitcoin" */
   coinId?: string;
+  /** stock only: ISIN, e.g. from a bank import; identifies the security when no symbol is known */
+  isin?: string;
+  /** cash only: account balance in EUR */
+  balance?: number;
+  /** cash only: the day the balance refers to, YYYY-MM-DD */
+  balanceDate?: string;
+  /** cash only */
+  iban?: string;
   purchases: Purchase[];
 }
 
@@ -96,8 +107,9 @@ export interface PortfolioState {
   settings: Settings;
 }
 
-export function quoteKey(h: Pick<Holding, 'assetClass' | 'symbol' | 'coinId'>): string | undefined {
+export function quoteKey(h: Pick<Holding, 'assetClass' | 'symbol' | 'coinId' | 'isin'>): string | undefined {
   if (h.assetClass === 'stock' && h.symbol) return `stock:${h.symbol.toUpperCase()}`;
+  if (h.assetClass === 'stock' && h.isin) return `isin:${h.isin.toUpperCase()}`;
   if (h.assetClass === 'crypto' && h.coinId) return `crypto:${h.coinId}`;
   return undefined;
 }

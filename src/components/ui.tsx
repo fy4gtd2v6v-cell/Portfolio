@@ -5,6 +5,7 @@ export const CLASS_COLOR: Record<AssetClass, string> = {
   metal: 'var(--c-metal)',
   stock: 'var(--c-stock)',
   crypto: 'var(--c-crypto)',
+  cash: 'var(--c-cash)',
 };
 
 const svg = (children: React.ReactNode, size = 18) => (
@@ -19,6 +20,8 @@ export const Icon = {
   holdings: () => svg(<><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="3.5" cy="6" r="1" /><circle cx="3.5" cy="12" r="1" /><circle cx="3.5" cy="18" r="1" /></>),
   metals: () => svg(<><path d="M7 8h10l4 10H3L7 8z" /><path d="M9.5 8l1-3h3l1 3" /></>),
   settings: () => svg(<><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></>),
+  cash: () => svg(<><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M3 10h18" /><path d="M7 15h4" /></>, 16),
+  upload: () => svg(<><path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>),
   plus: () => svg(<path d="M12 5v14M5 12h14" />),
   refresh: () => svg(<><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16" /><path d="M20 20v-4h-4" /></>),
   lock: () => svg(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>),
@@ -67,7 +70,7 @@ export function useCountUp(target: number, ms = 700): number {
 }
 
 /** Centered dialog on a dimmed backdrop. Closes on Escape and on a click outside. */
-export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -80,7 +83,7 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
   }, [onClose]);
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="card dialog">
+      <div className={`card dialog ${wide ? 'wide' : ''}`}>
         <div className="dialog-head">
           <h2>{title}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Schließen"><Icon.close /></button>

@@ -5,7 +5,7 @@ import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
 import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from '../lib/prices';
 import {
-  AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
+  ASSET_CLASSES, AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
 } from '../lib/types';
 import { toGrams, WeightUnit } from '../lib/units';
 
@@ -13,9 +13,9 @@ const FINENESS_PRESETS = [999.9, 999, 916.7, 900, 835, 750, 585];
 
 type Filter = AssetClass | 'all';
 
-export function HoldingsView({ state, update, onAdd, focusId }: { state: PortfolioState; update: Update; onAdd: () => void; focusId?: string }) {
+export function HoldingsView({ state, update, onAdd, onImport, focusId }: { state: PortfolioState; update: Update; onAdd: () => void; onImport: () => void; focusId?: string }) {
   const [filter, setFilter] = useState<Filter>('all');
-  const classes = (['metal', 'stock', 'crypto'] as AssetClass[]).filter((c) => state.holdings.some((h) => h.assetClass === c));
+  const classes = ASSET_CLASSES.filter((c) => state.holdings.some((h) => h.assetClass === c));
   // A position opened from the overview must be visible, so jumping to one clears the filter.
   useEffect(() => {
     if (focusId) setFilter('all');
@@ -34,7 +34,10 @@ export function HoldingsView({ state, update, onAdd, focusId }: { state: Portfol
               : `${state.holdings.length} Position${state.holdings.length === 1 ? '' : 'en'} · zum Bearbeiten anklicken`}
           </p>
         </div>
-        <button className="primary with-icon" onClick={onAdd}><Icon.plus />Neue Position</button>
+        <div className="inline">
+          <button className="with-icon" onClick={onImport} title="Kontoumsätze oder Depotbestand aus einer Bank-Datei übernehmen"><Icon.upload />Datei importieren</button>
+          <button className="primary with-icon" onClick={onAdd}><Icon.plus />Neue Position</button>
+        </div>
         {classes.length > 1 && (
           <div className="chips" role="radiogroup" aria-label="Nach Anlageklasse filtern">
             <button type="button" role="radio" aria-checked={active === 'all'} className={`filter-chip ${active === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
@@ -50,9 +53,11 @@ export function HoldingsView({ state, update, onAdd, focusId }: { state: Portfol
           </div>
         )}
       </section>
-      {shown.map((h) => (
-        <HoldingCard key={h.id} holding={h} state={state} update={update} focused={h.id === focusId} />
-      ))}
+      {shown.map((h) =>
+        h.assetClass === 'cash'
+          ? <CashCard key={h.id} holding={h} update={update} focused={h.id === focusId} />
+          : <HoldingCard key={h.id} holding={h} state={state} update={update} focused={h.id === focusId} />,
+      )}
     </>
   );
 }
@@ -112,10 +117,19 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [coinId, setCoinId] = useState('');
   const [draft, setDraft] = useState(emptyDraft);
+  const [balance, setBalance] = useState('');
   const [error, setError] = useState('');
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (cls === 'cash') {
+      const b = parseNum(balance);
+      if (!name.trim()) return setError('Bitte einen Namen für das Konto angeben, z. B. „ING Girokonto“.');
+      if (!Number.isFinite(b)) return setError('Bitte den aktuellen Kontostand eingeben.');
+      const account: Holding = { id: newId(), assetClass: 'cash', name: name.trim(), balance: b, balanceDate: today(), purchases: [] };
+      update((s) => ({ ...s, holdings: [...s.holdings, account] }));
+      return onDone(account.id);
+    }
     const p = toPurchase(draft, cls === 'metal');
     if (typeof p === 'string') return setError(p);
     const h: Holding = { id: newId(), assetClass: cls, name: name.trim(), purchases: [p] };
@@ -142,7 +156,7 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
   return (
     <form onSubmit={submit}>
       <div className="class-picker" role="radiogroup" aria-label="Anlageklasse">
-        {(['metal', 'stock', 'crypto'] as AssetClass[]).map((c) => (
+        {ASSET_CLASSES.map((c) => (
           <button type="button" key={c} role="radio" aria-checked={cls === c} className={cls === c ? 'active' : ''}
             style={{ '--c': CLASS_COLOR[c] } as React.CSSProperties} onClick={() => { setCls(c); setError(''); }}>
             <ClassIcon assetClass={c} large />
@@ -211,11 +225,29 @@ export function AddHolding({ state, update, onDone }: { state: PortfolioState; u
         </CryptoPicker>
       )}
 
-      <h3>Erster Kauf</h3>
-      <PurchaseFields draft={draft} set={setDraft} isMetal={cls === 'metal'} />
+      {cls === 'cash' ? (
+        <>
+          <div className="grid">
+            <label className="field">
+              <span>Name des Kontos</span>
+              <input placeholder="z. B. ING Girokonto, Sparkasse Tagesgeld" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Aktueller Kontostand in €</span>
+              <input inputMode="decimal" placeholder="z. B. 3.412,77" value={balance} onChange={(e) => setBalance(e.target.value)} />
+            </label>
+          </div>
+          <p className="muted small">Den Kontostand kannst du später von Hand ändern oder über „Datei importieren“ aus einem Kontoexport übernehmen.</p>
+        </>
+      ) : (
+        <>
+          <h3>Erster Kauf</h3>
+          <PurchaseFields draft={draft} set={setDraft} isMetal={cls === 'metal'} />
+        </>
+      )}
       {error && <div className="field-error">{error}</div>}
       <div className="inline">
-        <button type="submit" className="primary">Position anlegen</button>
+        <button type="submit" className="primary">{cls === 'cash' ? 'Konto anlegen' : 'Position anlegen'}</button>
         <button type="button" onClick={() => onDone()}>Abbrechen</button>
       </div>
     </form>
@@ -349,6 +381,7 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
           {CLASS_LABEL[h.assetClass]}
           {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
           {h.symbol && ` · ${h.symbol} (${h.currency})`}
+          {h.isin && ` · ${h.isin}`}
           {h.coinId && ` · ${h.coinId}`}
         </div>
         <div className="holding-summary">
@@ -408,6 +441,22 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
             <button type="submit">{draft.kind === 'sell' ? 'Verkauf erfassen' : 'Kauf erfassen'}</button>
           </form>
 
+          {h.assetClass === 'stock' && (
+            <SymbolEditor holding={h} onSave={(symbol, currency) =>
+              update((s) => {
+                const next: Holding = { ...h, symbol, currency };
+                const [oldKey, newKey] = [quoteKey(h), quoteKey(next)];
+                // Keep the last known price under the new key until a live quote arrives.
+                const carry = oldKey && newKey && oldKey !== newKey && s.quotes[oldKey] && !s.quotes[newKey];
+                return {
+                  ...s,
+                  holdings: s.holdings.map((x) => (x.id === h.id ? { ...x, symbol, currency } : x)),
+                  quotes: carry ? { ...s.quotes, [newKey]: { ...s.quotes[oldKey], source: 'manual' as const } } : s.quotes,
+                };
+              })
+            } />
+          )}
+
           {!isMetal && (
             <div>
               <h3>Kurs manuell setzen</h3>
@@ -424,6 +473,91 @@ function HoldingCard({ holding: h, state, update, focused }: { holding: Holding;
             <button className="danger" onClick={() => {
               if (confirm(`Position „${h.name}“ mit allen Käufen löschen?`)) update((s) => ({ ...s, holdings: s.holdings.filter((x) => x.id !== h.id) }));
             }}>Position löschen</button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Lets an imported security (known only by ISIN) be linked to a ticker symbol, so it gets live prices. */
+function SymbolEditor({ holding: h, onSave }: { holding: Holding; onSave: (symbol: string | undefined, currency: Currency) => void }) {
+  const [symbol, setSymbol] = useState(h.symbol ?? '');
+  const [currency, setCurrency] = useState<Currency>(h.currency ?? 'EUR');
+  const changed = symbol.trim().toUpperCase() !== (h.symbol ?? '') || currency !== (h.currency ?? 'EUR');
+  return (
+    <div>
+      <h3>Symbol für Live-Kurse</h3>
+      {!h.symbol && (
+        <p className="muted small">
+          Diese Position hat noch kein Börsensymbol und wird deshalb nicht automatisch aktualisiert. Trag das Alpha-Vantage-Symbol ein
+          (z. B. AAPL oder SAP.DEX), um Live-Kurse zu erhalten.
+        </p>
+      )}
+      <div className="inline">
+        <input placeholder="Symbol, z. B. AAPL" aria-label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+        <select value={currency} aria-label="Handelswährung" onChange={(e) => setCurrency(e.target.value as Currency)}>
+          {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <button type="button" disabled={!changed} onClick={() => onSave(symbol.trim().toUpperCase() || undefined, currency)}>Speichern</button>
+      </div>
+    </div>
+  );
+}
+
+/** A bank account: just a balance that can be corrected by hand. */
+function CashCard({ holding: h, update, focused }: { holding: Holding; update: Update; focused?: boolean }) {
+  const [open, setOpen] = useState(!!focused);
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focused) {
+      setOpen(true);
+      ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [focused]);
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    const n = parseNum(input);
+    if (!Number.isFinite(n)) return setError('Bitte einen Betrag eingeben, z. B. 3.412,77.');
+    setError('');
+    update((s) => ({ ...s, holdings: s.holdings.map((x) => (x.id === h.id ? { ...x, balance: n, balanceDate: today() } : x)) }));
+    setInput('');
+  }
+
+  return (
+    <section ref={ref} className={`card holding ${open ? 'open' : ''}`} style={{ '--c': CLASS_COLOR.cash } as React.CSSProperties}>
+      <div className="holding-head">
+        <ClassIcon assetClass="cash" />
+        <button className="link holding-title" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? '▾' : '▸'} {h.name}
+        </button>
+        <div className="muted small">
+          {CLASS_LABEL.cash}
+          {h.iban && ` · ${h.iban}`}
+        </div>
+        <div className="holding-summary">
+          {fmtEur(h.balance ?? 0)}
+          {h.balanceDate && <span className="muted small"> · Stand {new Date(h.balanceDate + 'T12:00:00').toLocaleDateString('de-DE')}</span>}
+        </div>
+      </div>
+      {open && (
+        <>
+          <form onSubmit={save}>
+            <h3>Kontostand ändern</h3>
+            <div className="inline">
+              <input inputMode="decimal" placeholder="Neuer Kontostand in €" aria-label="Neuer Kontostand" value={input} onChange={(e) => setInput(e.target.value)} />
+              <button type="submit">Speichern</button>
+            </div>
+            {error && <div className="field-error">{error}</div>}
+            <p className="muted small">Oder über „Datei importieren“ aus einem Kontoexport deiner Bank übernehmen.</p>
+          </form>
+          <div className="inline end">
+            <button className="danger" onClick={() => {
+              if (confirm(`Konto „${h.name}“ löschen?`)) update((s) => ({ ...s, holdings: s.holdings.filter((x) => x.id !== h.id) }));
+            }}>Konto löschen</button>
           </div>
         </>
       )}

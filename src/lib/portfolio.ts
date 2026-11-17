@@ -1,4 +1,4 @@
-import { AssetClass, Holding, PortfolioState, Purchase, quoteKey, Snapshot } from './types';
+import { ASSET_CLASSES, AssetClass, Holding, PortfolioState, Purchase, quoteKey, Snapshot } from './types';
 import { fineGrams } from './units';
 
 const EPS = 1e-9;
@@ -80,6 +80,11 @@ export interface HoldingValuation {
 }
 
 export function valueHolding(h: Holding, state: PortfolioState): HoldingValuation {
+  if (h.assetClass === 'cash') {
+    // An account is simply worth its balance: no price, no purchase lots, no gain.
+    const balance = h.balance ?? 0;
+    return { quantity: balance, cost: balance, realized: 0, closed: false, unitPrice: 1, value: balance, priceUpdatedAt: h.balanceDate, priceSource: 'manual' };
+  }
   const fifo = applyFifo(h.purchases);
   const closed = fifo.quantity <= EPS && h.purchases.length > 0;
   const quantity = closed ? 0 : fifo.quantity;
@@ -126,8 +131,10 @@ export interface PortfolioSummary {
   totalValue: number;
   /** cost of the holdings that have a price, so gain compares like with like */
   pricedCost: number;
-  /** cost basis of all open positions */
+  /** cost basis of all open positions (accounts are not an investment and stay out) */
   totalCost: number;
+  /** sum of all account balances, included in totalValue */
+  cashValue: number;
   /** unrealized gain of priced holdings */
   gain: number;
   gainPct?: number;
@@ -137,7 +144,7 @@ export interface PortfolioSummary {
   unpriced: Holding[];
 }
 
-const CLASS_ORDER: AssetClass[] = ['metal', 'stock', 'crypto'];
+const CLASS_ORDER: AssetClass[] = ASSET_CLASSES;
 
 export function summarize(state: PortfolioState): PortfolioSummary {
   const byClass = new Map<AssetClass, ClassSummary>();
@@ -145,16 +152,24 @@ export function summarize(state: PortfolioState): PortfolioSummary {
   let pricedCost = 0;
   let totalCost = 0;
   let realized = 0;
+  let cashValue = 0;
   const unpriced: Holding[] = [];
 
   for (const h of state.holdings) {
     const v = valueHolding(h, state);
     realized += v.realized;
     if (v.closed) continue;
-    totalCost += v.cost;
     const c = byClass.get(h.assetClass) ?? { assetClass: h.assetClass, value: 0, cost: 0, count: 0 };
     c.count += 1;
     c.cost += v.cost;
+    if (h.assetClass === 'cash') {
+      c.value += v.value ?? 0;
+      cashValue += v.value ?? 0;
+      totalValue += v.value ?? 0;
+      byClass.set(h.assetClass, c);
+      continue;
+    }
+    totalCost += v.cost;
     if (v.value === undefined) {
       unpriced.push(h);
     } else {
@@ -165,11 +180,12 @@ export function summarize(state: PortfolioState): PortfolioSummary {
     byClass.set(h.assetClass, c);
   }
 
-  const gain = totalValue - pricedCost;
+  const gain = totalValue - cashValue - pricedCost;
   return {
     totalValue,
     pricedCost,
     totalCost,
+    cashValue,
     gain,
     gainPct: pricedCost > 0 ? gain / pricedCost : undefined,
     realized,
@@ -192,7 +208,8 @@ export function withSnapshot(state: PortfolioState, date: string): PortfolioStat
   const snap: Snapshot = {
     date,
     value: round2(s.totalValue),
-    cost: round2(s.pricedCost),
+    // Balances count as their own "cost", so value minus cost stays the gain of the investments.
+    cost: round2(s.pricedCost + s.cashValue),
     byClass: Object.fromEntries(s.byClass.map((c) => [c.assetClass, round2(c.value)])),
   };
   const history = state.history ?? [];

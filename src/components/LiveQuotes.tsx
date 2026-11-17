@@ -4,7 +4,7 @@ import { ClassIcon, CLASS_COLOR, Icon } from './ui';
 import { HoldingValuation, valueHolding } from '../lib/portfolio';
 import { metalChangePct } from '../lib/prices';
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur } from '../lib/format';
-import { AssetClass, CLASS_LABEL, Holding, METAL_LABEL, PortfolioState, quoteKey } from '../lib/types';
+import { ASSET_CLASSES, AssetClass, CLASS_LABEL, Holding, METAL_LABEL, PortfolioState, quoteKey } from '../lib/types';
 
 type SortKey = 'name' | 'price' | 'change' | 'value' | 'gain';
 type Row = { h: Holding; v: HoldingValuation; changePct?: number; dayGain?: number };
@@ -55,7 +55,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
     () =>
       state.holdings
         .map((h) => ({ h, v: valueHolding(h, state) }))
-        .filter((x) => !x.v.closed)
+        .filter((x) => !x.v.closed && x.h.assetClass !== 'cash') // accounts have no price
         .map(({ h, v }) => {
           const key = quoteKey(h);
           const changePct = h.assetClass === 'metal' ? metalChangePct(h.metal ? state.metalPrices[h.metal] : undefined) : key ? state.quotes[key]?.changePct : undefined;
@@ -84,7 +84,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
     return () => window.clearTimeout(id);
   }, [rows]);
 
-  if (state.holdings.length === 0) {
+  if (rows.length === 0) {
     return (
       <section className="card empty">
         <div className="empty-icons" aria-hidden="true">
@@ -97,7 +97,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
     );
   }
 
-  const classes = (['metal', 'stock', 'crypto'] as AssetClass[]).filter((c) => rows.some((r) => r.h.assetClass === c));
+  const classes = ASSET_CLASSES.filter((c) => rows.some((r) => r.h.assetClass === c));
   const active = filter && classes.includes(filter) ? filter : null;
   const sortValue = (r: Row): number | string =>
     sort.key === 'name' ? r.h.name.toLocaleLowerCase('de')
@@ -211,7 +211,7 @@ export function LiveQuotes({ state, update, live, onAdd, onOpenHolding, initialF
                           {h.name}
                           <div className="muted small pos-sub">
                             {CLASS_LABEL[h.assetClass]}
-                            {h.symbol && ` · ${h.symbol}`}
+                            {(h.symbol || h.isin) && ` · ${h.symbol ?? h.isin}`}
                             {h.metal && ` · ${METAL_LABEL[h.metal]} ${fmtNum(h.fineness ?? 1000, 1)}‰`}
                           </div>
                         </div>

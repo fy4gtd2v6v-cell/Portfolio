@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AddHolding, HoldingsView } from './components/Holdings';
 import { Home } from './components/Home';
+import { ImportDialog } from './components/ImportDialog';
 import { LiveQuotes, LiveStatus } from './components/LiveQuotes';
 import { LockScreen } from './components/LockScreen';
 import { Logo } from './components/Logo';
@@ -89,6 +90,8 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
   const [adding, setAdding] = useState(false);
   const [focusId, setFocusId] = useState<string | undefined>();
   const closeAdd = useCallback(() => setAdding(false), []);
+  const [importing, setImporting] = useState(false);
+  const closeImport = useCallback(() => setImporting(false), []);
   const openHolding = (id: string) => {
     setFocusId(id);
     setTab('holdings');
@@ -183,7 +186,9 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
     };
   }, [autoOn, loadPrices]);
 
-  const hasLive = state.holdings.some((h) => h.assetClass !== 'metal' || state.settings.metalMode !== 'manual');
+  const hasLive = state.holdings.some(
+    (h) => (h.assetClass === 'stock' && !!h.symbol) || (h.assetClass === 'crypto' && !!h.coinId) || (h.assetClass === 'metal' && state.settings.metalMode !== 'manual'),
+  );
 
   return (
     <div className="app">
@@ -222,6 +227,15 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
         </Dialog>
       )}
 
+      {importing && (
+        <ImportDialog state={state} update={update} onClose={closeImport} onDone={(text) => {
+          setImporting(false);
+          setFocusId(undefined);
+          setTab('holdings');
+          setMessage({ kind: 'ok', lines: [text] });
+        }} />
+      )}
+
       <main>
         {tab === 'home' && (
           <Home state={state} onGoto={setTab} onAdd={() => setAdding(true)} onOpenHolding={openHolding}
@@ -231,7 +245,7 @@ function Portfolio({ initial, initialVault, initialRecoveryCode, onLocked }: {
           <LiveQuotes state={state} update={update} live={{ lastAt: lastLive.at, error: lastLive.error, busy: refreshing } satisfies LiveStatus}
             onAdd={() => setAdding(true)} onOpenHolding={openHolding} initialFilter={classFilter} />
         )}
-        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} focusId={focusId} />}
+        {tab === 'holdings' && <HoldingsView state={state} update={update} onAdd={() => setAdding(true)} onImport={() => setImporting(true)} focusId={focusId} />}
         {tab === 'metals' && <MetalPrices state={state} update={update} />}
         {tab === 'settings' && <SettingsView state={state} update={update} replace={setState} vault={vault} setVault={setVault} showRecoveryCode={setRecoveryCode} />}
       </main>

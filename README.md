@@ -25,6 +25,13 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   Minute automatisch aktualisiert (abschaltbar), Aktien wegen des Tageslimits nur über „Kurse aktualisieren“.
   „Heute“ bedeutet bei Krypto die letzten 24 Stunden, bei Aktien seit dem letzten Börsenschluss,
   bei Edelmetallen seit dem letzten Abruf an einem früheren Tag.
+- **Konten**: Girokonten und andere Bankkonten zählen als vierte Anlageklasse zum Gesamtvermögen
+  (nicht zum investierten Kapital).
+- **Datei-Import** (Positionen → „Datei importieren“): CSV-Exporte aus dem Online-Banking, z. B. von
+  ING, Sparkasse oder Trade Republic. Erkannt werden Kontoumsätze (→ Kontostand), Depotbestände
+  (→ Positionen mit Stückzahl und Einstand) und Wertpapier-Transaktionen (→ Käufe und Verkäufe).
+  Die Spalten werden an ihren Überschriften erkannt und lassen sich von Hand zuordnen; vor dem
+  Import gibt es eine Vorschau. Die Datei wird nur im Browser gelesen.
 - Neue Positionen werden über „Neue Position“ in einem eigenen Fenster angelegt.
 - Daten bleiben lokal im Browser; Export/Import als JSON (API-Keys werden nicht exportiert).
 

@@ -16,6 +16,7 @@
   --c-metal: #eda100;
   --c-stock: #2a78d6;
   --c-crypto: #1baf7a;
+  --c-cash: #6250d6;
   --btn-bg: #1c1b16;
   --btn-fg: #fdfcfa;
   --pos: #0b7a3e;
@@ -56,6 +57,8 @@
     --c-metal: #c98500;
     --c-stock: #3987e5;
     --c-crypto: #199e70;
+  --c-cash: #9085e9;
+    --c-cash: #9085e9;
     --btn-bg: #f0efec;
     --btn-fg: #16150f;
     --pos: #4cc27e;
@@ -438,7 +441,7 @@ tr.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .card.holding { border-left: 4px solid var(--c); transition: box-shadow .15s, transform .15s; }
 .card.holding:not(.open):hover { transform: translateY(-1px); box-shadow: 0 8px 22px color-mix(in srgb, var(--c) 18%, transparent); }
 .holding-head { align-items: center; }
-.class-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.class-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
 .class-picker button { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; border-radius: 14px; font-weight: 550; }
 .class-picker button:hover:not(:disabled) { border-color: var(--c); background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
 .class-picker button.active { border-color: var(--c); box-shadow: 0 0 0 2px var(--c); background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
@@ -521,3 +524,32 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 @keyframes flash-up { 0% { background: color-mix(in srgb, var(--pos) 35%, transparent); } 100% { background: transparent; } }
 @keyframes flash-down { 0% { background: color-mix(in srgb, var(--neg) 35%, transparent); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .live-dot.on::after, .price.flash-up, .price.flash-down { animation: none; } }
+
+/* ---------- file import ---------- */
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 28px 16px; margin: 4px 0 14px;
+  border: 2px dashed var(--border-strong); border-radius: 14px; background: var(--surface-2); cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.dropzone:hover, .dropzone.over { border-color: var(--brand); background: var(--brand-soft); }
+.dropzone svg { width: 28px; height: 28px; color: var(--brand); }
+.dropzone strong { font-size: 16px; }
+.import-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; }
+.import-meta .file { font-weight: 600; overflow-wrap: anywhere; }
+.mapping { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 14px; margin: 10px 0 4px; }
+.mapping .field { margin: 0; }
+.import-table td, .import-table th { padding: 8px 6px; }
+.import-table input[type="checkbox"] { width: auto; accent-color: var(--brand); }
+.tag { display: inline-block; font-size: 12px; font-weight: 550; padding: 1px 8px; border-radius: 999px; background: var(--track); color: var(--text-2); white-space: nowrap; }
+.tag.new { background: var(--ok-bg); color: var(--pos); }
+.tag.update { background: var(--brand-soft); color: var(--brand); }
+.warn-text { color: color-mix(in srgb, var(--gold) 55%, var(--text)); font-size: 13px; }
+.howto { margin: 0 0 6px; }
+.howto li { margin: 4px 0; }
+.dialog.wide { max-width: 860px; }
+.balance-big { font-size: 24px; font-weight: 660; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .class-picker { grid-template-columns: 1fr; } }
+
+/* The generic button hover must not wash out controls that are filled with the brand colour. */
+.tab.active:hover:not(:disabled),
+.segmented button.active:hover:not(:disabled) { background: var(--brand-grad); color: #fff; }
