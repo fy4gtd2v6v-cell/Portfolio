@@ -5,6 +5,7 @@ import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import { applyFifo, sortTransactions, valueHolding } from '../lib/portfolio';
 import { CryptoMatch, isCurrency, searchCrypto, searchStocks, StockMatch } from '../lib/prices';
 import { rankSymbolMatches, searchTerm } from '../lib/symbols';
+import { pendingList } from '../lib/importer';
 import {
   ASSET_CLASSES, AssetClass, CLASS_LABEL, Currency, CURRENCIES, Holding, Metal, METAL_LABEL, METALS, newId, PortfolioState, Purchase, quoteKey,
 } from '../lib/types';
@@ -586,7 +587,16 @@ function CashCard({ holding: h, update, focused }: { holding: Holding; update: U
     const n = parseNum(input);
     if (!Number.isFinite(n)) return setError('Bitte einen Betrag eingeben, z. B. 3.412,77.');
     setError('');
-    update((s) => ({ ...s, holdings: s.holdings.map((x) => (x.id === h.id ? { ...x, balance: n, balanceDate: today() } : x)) }));
+    update((s) => ({
+      ...s,
+      holdings: s.holdings.map((x) => {
+        if (x.id !== h.id) return x;
+        // Keep the running import totals in line with the corrected balance, so the next import continues from it.
+        const pending = x.broker?.withPending ? pendingList(x.broker).reduce((sum, p) => sum + p.amount, 0) : 0;
+        const broker = x.broker ? { ...x.broker, cash: Math.round((n - pending) * 100) / 100 } : undefined;
+        return { ...x, balance: n, balanceDate: today(), broker };
+      }),
+    }));
     setInput('');
   }
 

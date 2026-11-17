@@ -38,6 +38,19 @@ export interface Purchase {
   fee?: number;
   /** short note, e.g. "Sparplan" */
   note?: string;
+  /** identity from an import (transaction id or fingerprint), so the same trade is not imported twice */
+  ref?: string;
+}
+
+/** What the app knows about a broker's cash account from imported transaction lists. */
+export interface BrokerAccount {
+  /** every imported row that moved money, so a later, overlapping file only adds what is new */
+  refs: string[];
+  cash: number;
+  /** money paid for orders without shares yet, per security (ISIN or name) */
+  pending: Record<string, { name: string; amount: number }>;
+  /** whether open orders count towards the balance */
+  withPending?: boolean;
 }
 
 /** Daily record of the portfolio value, used for the history chart. */
@@ -71,6 +84,8 @@ export interface Holding {
   balanceDate?: string;
   /** cash only */
   iban?: string;
+  /** cash only: running totals when the balance comes from a broker's transaction list */
+  broker?: BrokerAccount;
   purchases: Purchase[];
 }
 

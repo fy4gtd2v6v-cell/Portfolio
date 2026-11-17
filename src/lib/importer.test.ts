@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyBalance, applyPositions, applyTransactions, autoMap, detectKind, matchHolding, missingFields, parseFile,
-  readPositions, readStatement, readTransactions, transactionKind,
+  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, matchHolding, missingFields,
+  parseFile, pendingList, planTransactions, readPositions, readStatement, readTransactions, transactionKind,
 } from './importer';
 import type { TransactionDraft } from './importer';
 import { summarize, valueHolding } from './portfolio';
@@ -254,11 +254,13 @@ describe('Trade Republic transaction export', () => {
     expect(r.cash).toEqual({ balance: -0.99, date: '2026-11-11' });
   });
 
-  it('values every position with the last trade price and replaces an earlier import without ISIN', () => {
+  it('values every position with the last trade price and, on request, repairs an earlier import without ISIN', () => {
     const m = autoMap(file.header, 'transactions', file.rows);
     const { drafts } = readTransactions(file, m);
     // An earlier, broken import had created "Bloom Energy" without ISIN and without cost.
     let state = applyPositions(emptyState(), [{ key: 'x', name: 'Bloom Energy', quantity: 0.279017, warnings: [] }], '2026-11-17');
+    // A position with nothing but 0-€ lots without import id is repaired automatically, without asking.
+    expect(planTransactions(state, drafts).find((p) => p.holding)!.replaced).toBe(true);
     state = applyTransactions(state, drafts);
     const blooms = state.holdings.filter((h) => h.name === 'Bloom Energy');
     expect(blooms).toHaveLength(1);
@@ -288,5 +290,82 @@ describe('sales with fees and taxes', () => {
     const f = parseFile('Datum;Typ;ISIN;Stück;Kurs;Betrag;Gebühr;Steuer\n01.01.2026;Kauf;IE00B4L5Y983;10;10,00;-100,00;-1,00;\n01.06.2026;Verkauf;IE00B4L5Y983;10;12,00;120,00;-1,00;-4,75');
     const d = readTransactions(f, autoMap(f.header, 'transactions', f.rows)).drafts[0];
     expect(d.purchases.map((p) => p.totalCost)).toEqual([101, 114.25]);
+  });
+});
+
+describe('importing a newer or overlapping file', () => {
+  const rows = TR.trim().split('\n');
+  const head = rows[0];
+  // rows[1..9]: July to November. "Early" covers July–September, "late" September–November (overlapping).
+  const early = parseFile([head, ...rows.slice(1, 7)].join('\n'));
+  const late = parseFile([head, ...rows.slice(4)].join('\n'));
+  const full = parseFile(TR);
+  const read = (f: ReturnType<typeof parseFile>) => readTransactions(f, autoMap(f.header, 'transactions', f.rows));
+  const importFile = (state: ReturnType<typeof emptyState>, f: ReturnType<typeof parseFile>) => {
+    const r = read(f);
+    const acc = state.holdings.find((h) => h.name === 'Trade Republic');
+    return applyBrokerAccount(applyTransactions(state, r.drafts), { accountId: acc?.id, name: 'Trade Republic', events: r.cashEvents, withPending: true });
+  };
+  const snapshot = (state: ReturnType<typeof emptyState>) =>
+    Object.fromEntries(state.holdings.map((h) => [h.name, h.assetClass === 'cash' ? h.balance : valueHolding(h, state).quantity.toFixed(6)]));
+
+  it('adds only new trades, so early + late equals the full file', () => {
+    const stepwise = importFile(importFile(emptyState(), early), late);
+    const once = importFile(emptyState(), full);
+    expect(snapshot(stepwise)).toEqual(snapshot(once));
+    const bloom = stepwise.holdings.find((h) => h.isin === 'US0937121079')!;
+    expect(bloom.purchases).toHaveLength(2);
+  });
+
+  it('changes nothing when the same file is imported again', () => {
+    const once = importFile(emptyState(), full);
+    const twice = importFile(once, full);
+    expect(snapshot(twice)).toEqual(snapshot(once));
+    expect(planTransactions(twice, read(full).drafts).every((p) => p.added.length === 0)).toBe(true);
+    const acc = twice.holdings.find((h) => h.name === 'Trade Republic')!;
+    expect(acc.broker!.refs).toHaveLength(read(full).cashEvents.length);
+  });
+
+  it('continues the cash account and the open orders across files', () => {
+    const once = importFile(emptyState(), full);
+    const acc = once.holdings.find((h) => h.name === 'Trade Republic')!;
+    // cash −0.99 (see above) + open orders 25 (private equity) + 100 (IPO)
+    expect(acc.broker!.cash).toBe(-0.99);
+    expect(pendingList(acc.broker!).map((p) => p.amount)).toEqual([25, 100]);
+    expect(acc.balance).toBe(124.01);
+    const stepwise = importFile(importFile(emptyState(), early), late);
+    expect(stepwise.holdings.find((h) => h.name === 'Trade Republic')!.balance).toBe(124.01);
+    expect(brokerBalance(acc.broker!, false)).toBe(-0.99);
+  });
+
+  it('repairs only broken positions and merges all others', () => {
+    // First a partial file, then the broken lot of another position appears (e.g. old data), then the rest.
+    let state = importFile(emptyState(), early);
+    state = applyPositions(state, [{ key: 'x', name: 'Anthropic Test', quantity: 1, warnings: [] }], '2026-11-17');
+    const plans = planTransactions(state, read(late).drafts);
+    expect(plans.filter((p) => p.replaced)).toEqual([]);
+    state = importFile(state, late);
+    expect(snapshot(state)).toEqual({ ...snapshot(importFile(emptyState(), full)), 'Anthropic Test': '1.000000' });
+  });
+
+  it('recognises trades entered by hand', () => {
+    let state = emptyState();
+    state = applyTransactions(state, read(early).drafts.filter((d) => d.isin === 'DE000A0HL8N9').map((d) => ({
+      ...d, purchases: d.purchases.map((p) => ({ ...p, ref: undefined, note: undefined })), // as if typed in
+    })));
+    const plan = planTransactions(state, read(full).drafts).find((p) => p.draft.isin === 'DE000A0HL8N9')!;
+    expect(plan.duplicates).toBe(1);
+    expect(plan.added).toHaveLength(0);
+  });
+
+  it('keeps two identical trades in a file without transaction ids', () => {
+    const f = parseFile('Datum;Typ;ISIN;Stück;Betrag\n01.01.2026;Kauf;IE00B4L5Y983;1;100,00\n01.01.2026;Kauf;IE00B4L5Y983;1;100,00');
+    const r = readTransactions(f, autoMap(f.header, 'transactions', f.rows));
+    expect(r.drafts[0].purchases.map((p) => p.ref)).toEqual([
+      'IE00B4L5Y983|buy|2026-01-01|1.000000|100.00#1',
+      'IE00B4L5Y983|buy|2026-01-01|1.000000|100.00#2',
+    ]);
+    const state = applyTransactions(applyTransactions(emptyState(), r.drafts), r.drafts);
+    expect(state.holdings[0].purchases).toHaveLength(2);
   });
 });

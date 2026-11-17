@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Update } from '../App';
 import { decodeBytes } from '../lib/csv';
-import { fmtEur, fmtNum, parseNum, today } from '../lib/format';
+import { fmtEur, fmtNum, fmtSignedEur, parseNum, today } from '../lib/format';
 import {
-  applyBalance, applyPositions, applyTransactions, autoMap, detectKind, FIELDS, ImportKind, KIND_LABEL, Mapping, matchHolding,
-  missingFields, ParsedFile, parseFile, readPositions, readStatement, readTransactions,
+  applyBalance, applyBrokerAccount, applyPositions, applyTransactions, autoMap, brokerBalance, detectKind, emptyBroker, FIELDS,
+  foldCashEvents, hasOnlyBrokenLots, ImportKind, KIND_LABEL, Mapping, matchHolding, missingFields, ParsedFile, parseFile, pendingList,
+  planTransactions, readPositions, readStatement, readTransactions,
 } from '../lib/importer';
 import { PortfolioState } from '../lib/types';
 import { Dialog, Icon } from './ui';
@@ -293,18 +294,28 @@ const looksLikeTradeRepublic = (header: string[]) => {
 };
 
 function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
-  const { drafts, skipped, ignoredTypes, pending, cash } = useMemo(() => readTransactions(file, mapping), [file, mapping]);
+  const result = useMemo(() => readTransactions(file, mapping), [file, mapping]);
+  const { drafts, skipped, ignoredTypes, cash, cashEvents } = result;
   const [off, setOff] = useState<Set<string>>(new Set());
-  const chosen = drafts.filter((d) => !off.has(d.key));
+  const [replace, setReplace] = useState(false);
   const toggle = (key: string) => setOff((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const plans = useMemo(() => planTransactions(state, drafts, replace), [state, drafts, replace]);
+  const chosen = plans.filter((p) => !off.has(p.draft.key));
+  const newTrades = chosen.reduce((s, p) => s + p.added.length, 0);
+  const knownTrades = chosen.reduce((s, p) => s + p.duplicates, 0);
 
-  const pendingSum = pending.reduce((s, p) => s + p.amount, 0);
-  const [takeCash, setTakeCash] = useState(true);
-  const [takePending, setTakePending] = useState(true);
+  // Broker cash account: continued from earlier imports, so overlapping files add only new rows.
   const [accountName, setAccountName] = useState(looksLikeTradeRepublic(file.header) ? 'Trade Republic' : 'Verrechnungskonto');
   const existingAccount = state.holdings.find((h) => h.assetClass === 'cash' && h.name.trim().toLowerCase() === accountName.trim().toLowerCase());
-  const accountBalance = (cash ? cash.balance : 0) + (takePending ? pendingSum : 0);
-  const withAccount = !!cash && takeCash && accountName.trim() !== '';
+  const startBroker = existingAccount?.broker ?? emptyBroker();
+  const folded = useMemo(() => foldCashEvents(startBroker, cashEvents), [startBroker, cashEvents]);
+  const pendingNow = pendingList(folded);
+  const pendingSum = pendingNow.reduce((s, p) => s + p.amount, 0);
+  const [takeCash, setTakeCash] = useState(true);
+  const [takePending, setTakePending] = useState(existingAccount?.broker?.withPending ?? true);
+  const newBalance = brokerBalance(folded, takePending);
+  const continued = !!existingAccount?.broker;
+  const withAccount = !!cash && takeCash && accountName.trim() !== '' && (folded.added > 0 || !continued || takePending !== !!existingAccount?.broker?.withPending);
 
   if (drafts.length === 0) {
     return (
@@ -315,7 +326,9 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
     );
   }
 
-  const invested = chosen.reduce((s, d) => s + d.invested, 0);
+  const addedInvested = chosen.reduce((s, p) => s + p.added.filter((t) => t.kind !== 'sell').reduce((x, t) => x + t.totalCost, 0), 0);
+  const anyExisting = plans.some((p) => p.holding);
+  const repaired = plans.filter((p) => p.replaced && p.holding && hasOnlyBrokenLots(p.holding));
 
   return (
     <>
@@ -323,16 +336,16 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
       <div className="table-wrap">
         <table className="import-table">
           <thead>
-            <tr><th /><th>Wertpapier</th><th className="num">Buchungen</th><th className="num">Investiert</th><th className="num">Bestand</th><th className="num">Letzter Kurs</th><th /></tr>
+            <tr><th /><th>Wertpapier</th><th className="num">Neue Buchungen</th><th className="num">Neu investiert</th><th className="num">Letzter Kurs</th><th /></tr>
           </thead>
           <tbody>
-            {drafts.map((d) => {
-              const match = matchHolding(state, d);
-              const buys = d.purchases.filter((p) => p.kind !== 'sell');
-              const plans = buys.filter((p) => p.note === 'Sparplan').length;
-              const sells = d.purchases.length - buys.length;
+            {plans.map(({ draft: d, holding, added, duplicates, replaced }) => {
+              const buys = added.filter((p) => p.kind !== 'sell');
+              const sells = added.length - buys.length;
+              const savings = buys.filter((p) => p.note === 'Sparplan').length;
+              const tag = !holding ? ['new', 'neu'] : replaced ? ['update', 'ersetzt Käufe'] : added.length ? ['update', 'ergänzt'] : ['', 'unverändert'];
               return (
-                <tr key={d.key}>
+                <tr key={d.key} className={!added.length ? 'muted' : ''}>
                   <td><input type="checkbox" checked={!off.has(d.key)} onChange={() => toggle(d.key)} aria-label={`${d.name} importieren`} /></td>
                   <td>
                     {d.name}
@@ -340,17 +353,27 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
                     {d.warnings.map((w) => <div key={w} className="warn-text">{w}</div>)}
                   </td>
                   <td className="num">
-                    {buys.length} {buys.length === 1 ? 'Kauf' : 'Käufe'}
-                    {sells > 0 && ` · ${sells} ${sells === 1 ? 'Verkauf' : 'Verkäufe'}`}
-                    {plans > 0 && <div className="muted small">davon {plans} Sparplan</div>}
+                    {added.length === 0 ? 'keine neuen' : (
+                      <>
+                        {buys.length > 0 && `${buys.length} ${buys.length === 1 ? 'Kauf' : 'Käufe'}`}
+                        {buys.length > 0 && sells > 0 && ' · '}
+                        {sells > 0 && `${sells} ${sells === 1 ? 'Verkauf' : 'Verkäufe'}`}
+                      </>
+                    )}
+                    {(savings > 0 || duplicates > 0) && (
+                      <div className="muted small">
+                        {savings > 0 && `davon ${savings} Sparplan`}
+                        {savings > 0 && duplicates > 0 && ' · '}
+                        {duplicates > 0 && `${duplicates} schon vorhanden`}
+                      </div>
+                    )}
                   </td>
-                  <td className="num">{fmtEur(d.invested)}</td>
-                  <td className="num">{fmtNum(Math.max(0, d.quantity), 6)}</td>
+                  <td className="num">{fmtEur(buys.reduce((s, p) => s + p.totalCost, 0))}</td>
                   <td className="num">
                     {d.lastPrice ? fmtEur(d.lastPrice.price) : '–'}
                     {d.lastPrice && <div className="muted small">{day(d.lastPrice.date)}</div>}
                   </td>
-                  <td><span className={`tag ${match ? 'update' : 'new'}`}>{match ? 'ersetzt Historie' : 'neu'}</span></td>
+                  <td><span className={`tag ${tag[0]}`}>{tag[1]}</span></td>
                 </tr>
               );
             })}
@@ -358,13 +381,30 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
         </table>
       </div>
       <p className="small">
-        Zusammen investiert: <strong>{fmtEur(invested)}</strong> in {chosen.length} Wertpapier{chosen.length === 1 ? '' : 'en'}.
+        <strong>{newTrades}</strong> neue Buchung{newTrades === 1 ? '' : 'en'} ({fmtEur(addedInvested)} investiert)
+        {knownTrades > 0 && <span className="muted"> · {knownTrades} schon vorhanden, werden übersprungen</span>}
       </p>
       <p className="muted small">
-        Käufe desselben Wertpapiers werden zu einer Position zusammengefasst; jeder einzelne Kauf bleibt mit Kurs, Gebühr und Betrag
-        sichtbar. Bis ein Live-Kurs vorliegt, gilt der Kurs des letzten Kaufs. Bei Positionen mit gleicher ISIN ersetzt die Datei die
-        bisherigen Käufe und Verkäufe.
+        Käufe desselben Wertpapiers werden zu einer Position zusammengefasst; jeder Kauf bleibt mit Kurs, Gebühr und Betrag sichtbar.
+        Bereits importierte Buchungen werden an ihrer Buchungsnummer erkannt – du kannst also jederzeit eine neuere oder überlappende
+        Datei importieren. Bis ein Live-Kurs vorliegt, gilt der Kurs des letzten Kaufs.
       </p>
+      {anyExisting && (
+        <label className="check-row">
+          <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+          <span>
+            Bisherige Käufe dieser Wertpapiere ersetzen
+            <span className="muted small"> – nur nötig, um einen fehlerhaften früheren Import zu reparieren. Von Hand erfasste Käufe dieser Wertpapiere gehen dabei verloren.</span>
+          </span>
+        </label>
+      )}
+      {repaired.length > 0 && !replace && (
+        <div className="banner warn">
+          {repaired.length === 1 ? 'Eine Position hat' : `${repaired.length} Positionen haben`} bisher nur Käufe ohne Kaufpreis (0 €) – vermutlich
+          aus einem fehlerhaften früheren Import: {repaired.map((p) => p.holding!.name).join(', ')}. Diese Käufe werden durch die aus der Datei ersetzt.
+          Alle anderen Positionen werden nur ergänzt.
+        </div>
+      )}
 
       {cash && (
         <>
@@ -372,17 +412,21 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
           <label className="check-row">
             <input type="checkbox" checked={takeCash} onChange={(e) => setTakeCash(e.target.checked)} />
             <span>
-              Verrechnungskonto als Konto übernehmen
-              <span className="muted small"> – Summe aller Ein- und Auszahlungen, Zinsen, Käufe und Gebühren in der Datei. Stimmt nur, wenn die Datei seit Kontoeröffnung reicht.</span>
+              Verrechnungskonto {continued ? 'fortschreiben' : 'als Konto übernehmen'}
+              <span className="muted small">
+                {continued
+                  ? ` – ${folded.added} neue Buchung${folded.added === 1 ? '' : 'en'} (${fmtSignedEur(folded.delta)}), ${cashEvents.length - folded.added} schon berücksichtigt.`
+                  : ' – Summe aller Ein- und Auszahlungen, Zinsen, Käufe und Gebühren. Stimmt nur, wenn diese erste Datei seit Kontoeröffnung reicht; spätere Dateien werden danach nur noch ergänzt.'}
+              </span>
             </span>
-            <span className="amount">{fmtEur(cash.balance)}</span>
+            <span className="amount">{fmtEur(folded.cash)}</span>
           </label>
-          {pending.length > 0 && (
+          {pendingNow.length > 0 && (
             <label className="check-row">
               <input type="checkbox" checked={takePending} disabled={!takeCash} onChange={(e) => setTakePending(e.target.checked)} />
               <span>
                 Offene Aufträge mitzählen
-                <span className="muted small"> – bezahlt, aber noch keine Anteile: {pending.map((p) => `${p.name} ${fmtEur(p.amount)}`).join(', ')}</span>
+                <span className="muted small"> – bezahlt, aber noch keine Anteile: {pendingNow.map((p) => `${p.name} ${fmtEur(p.amount)}`).join(', ')}</span>
               </span>
               <span className="amount">+{fmtEur(pendingSum)}</span>
             </label>
@@ -394,9 +438,9 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
                 <input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
               </label>
               <div className="field">
-                <span>Kontostand am {day(cash.date)}</span>
-                <div className="balance-big">{fmtEur(accountBalance)}</div>
-                <span className="muted small">{existingAccount ? `ersetzt den bisherigen Stand von ${fmtEur(existingAccount.balance ?? 0)}` : 'wird als neues Konto angelegt'}</span>
+                <span>Kontostand danach</span>
+                <div className="balance-big">{fmtEur(newBalance)}</div>
+                <span className="muted small">{existingAccount ? `bisher ${fmtEur(existingAccount.balance ?? 0)}` : 'wird als neues Konto angelegt'}</span>
               </div>
             </div>
           )}
@@ -410,17 +454,18 @@ function TransactionsPreview({ file, mapping, state, onApply }: PreviewProps) {
         Dividenden und Zinsen werden nicht als Wertpapier-Buchungen übernommen.
       </p>
       <div className="inline">
-        <button type="button" className="primary" disabled={chosen.length === 0 && !withAccount} onClick={() => {
-          const account = withAccount && cash
-            ? { accountId: existingAccount?.id, name: accountName.trim(), balance: Math.round(accountBalance * 100) / 100, balanceDate: cash.date }
-            : undefined;
-          const parts = [`${chosen.length} Wertpapier${chosen.length === 1 ? '' : 'e'} mit ${chosen.reduce((s, d) => s + d.purchases.length, 0)} Buchungen importiert`];
-          if (account) parts.push(`Konto „${account.name}“: ${fmtEur(account.balance)}`);
+        <button type="button" className="primary" disabled={newTrades === 0 && !replace && !withAccount} onClick={() => {
+          const drafts = chosen.map((p) => p.draft);
+          const account = withAccount ? { accountId: existingAccount?.id, name: accountName.trim(), events: cashEvents, withPending: takePending } : undefined;
+          const parts = [`${newTrades} neue Buchung${newTrades === 1 ? '' : 'en'} importiert`];
+          if (knownTrades > 0) parts.push(`${knownTrades} schon vorhanden`);
+          if (account) parts.push(`Konto „${account.name}“: ${fmtEur(newBalance)}`);
           onApply((s) => {
-            const next = applyTransactions(s, chosen);
-            return account ? applyBalance(next, account) : next;
+            const next = applyTransactions(s, drafts, replace);
+            return account ? applyBrokerAccount(next, account) : next;
           }, parts.join(' · ') + '.');
-        }}>Importieren</button>
+        }}>{newTrades === 0 && !replace ? (withAccount ? 'Nur Guthaben aktualisieren' : 'Nichts Neues') : 'Importieren'}</button>
+        {newTrades === 0 && !replace && !withAccount && <span className="muted small">Alles aus dieser Datei ist schon importiert.</span>}
       </div>
     </>
   );

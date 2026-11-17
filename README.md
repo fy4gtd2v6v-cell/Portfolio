@@ -35,6 +35,9 @@ Persönlicher Portfolio-Tracker im Browser – für Edelmetalle (in Gramm), Akti
   Bei Transaktionslisten (z. B. Trade Republic) werden alle Käufe eines Wertpapiers zu einer Position
   zusammengefasst; jeder Kauf bleibt mit Kurs, Gebühr, Betrag und Sparplan-Kennzeichen sichtbar.
   Das Guthaben und bereits bezahlte, offene Aufträge können als Konto übernommen werden.
+  Spätere oder überlappende Exporte werden **ergänzt**, nicht doppelt gezählt: Jede Buchung wird an
+  ihrer Buchungsnummer erkannt (ohne Nummer an Datum, Stückzahl und Betrag), das Guthaben wird mit
+  den neuen Buchungen fortgeschrieben.
 - **Börsensymbol suchen**: Importierte Wertpapiere kennen zunächst nur ihre ISIN und werden mit dem
   Kurs des letzten Kaufs bewertet. Bei der Position lässt sich das Symbol über den Namen bei
   Alpha Vantage suchen (US-Aktien an der US-Börse, sonst bevorzugt Xetra in Euro).
