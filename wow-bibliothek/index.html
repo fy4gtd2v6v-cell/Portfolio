@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="de" data-faction="horde">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Azeroth-Bibliothek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ===================== Farben & Fraktions-Themen ===================== */
+:root{
+  --gold:#f8d16a; --gold-dk:#a07a2a; --gold-lt:#fff1b8;
+  --stone:#1b1714; --stone-2:#2a231d; --ink:#2b1a0b; --ink-soft:#5a3d1e;
+  --parch:#ecd9b0; --parch-2:#d9bf8a;
+  --q-poor:#9d9d9d; --q-common:#ffffff; --q-uncommon:#1eff00; --q-rare:#0070dd; --q-epic:#a335ee; --q-legendary:#ff8000;
+  --tip-bg:rgba(8,10,28,.96);
+}
+html[data-faction="horde"]{
+  --accent:#b3201b; --accent-dk:#5b0d0a; --accent-lt:#ff6a4d;
+  --frame-1:#3a1310; --frame-2:#170807; --bg-glow:rgba(160,30,20,.35);
+}
+html[data-faction="alliance"]{
+  --accent:#1f4fa8; --accent-dk:#0c2052; --accent-lt:#7fb0ff;
+  --frame-1:#132545; --frame-2:#070d1c; --bg-glow:rgba(40,90,190,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:
+    radial-gradient(ellipse at 50% -10%, var(--bg-glow), transparent 60%),
+    radial-gradient(ellipse at 50% 120%, rgba(0,0,0,.8), transparent 60%),
+    repeating-linear-gradient(45deg, #15110e 0 6px, #18130f 6px 12px);
+  background-color:#120e0b;
+  color:var(--parch); font-family:"Crimson Text", Georgia, serif; font-size:17px;
+  transition:background .4s;
+}
+h1,h2,h3,h4,.cinzel{font-family:"Cinzel", "Times New Roman", serif;letter-spacing:.03em}
+
+/* ===================== Kopfzeile ===================== */
+.topbar{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:12px 20px;max-width:1400px;margin:0 auto;
+}
+.brand{display:flex;align-items:center;gap:12px;flex:1;min-width:240px}
+.brand h1{margin:0;font-size:26px;color:var(--gold);text-shadow:0 2px 0 #000,0 0 12px rgba(248,209,106,.35)}
+.brand small{display:block;font-family:"Crimson Text";font-style:italic;color:#c9b48a;font-size:14px;letter-spacing:0}
+.emblem{width:46px;height:46px;flex:none}
+.searchbox{position:relative;flex:1;min-width:220px;max-width:420px}
+.searchbox input{
+  width:100%;padding:9px 12px 9px 34px;font:inherit;font-size:16px;color:var(--gold-lt);
+  background:linear-gradient(#0b0807,#1d1611);border:2px solid var(--gold-dk);border-radius:4px;
+  box-shadow:inset 0 2px 6px #000;outline:none;
+}
+.searchbox input:focus{border-color:var(--gold)}
+.searchbox svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.7}
+
+/* Fraktionsschalter */
+.faction-switch{display:flex;border:2px solid var(--gold-dk);border-radius:6px;overflow:hidden;box-shadow:0 2px 8px #000}
+.faction-switch button{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border:0;cursor:pointer;
+  font-family:"Cinzel";font-weight:800;font-size:13px;color:#8d7d62;background:#120d0a;
+}
+.faction-switch button svg{width:22px;height:22px;opacity:.5}
+.faction-switch button.on{color:#fff;text-shadow:0 1px 0 #000}
+.faction-switch button.on svg{opacity:1}
+.faction-switch button[data-f="horde"].on{background:linear-gradient(#a3201a,#4e0b08)}
+.faction-switch button[data-f="alliance"].on{background:linear-gradient(#2a5cbd,#0d2152)}
+
+/* ===================== WoW-Fenster ===================== */
+.layout{display:grid;grid-template-columns:340px 1fr;gap:22px;max-width:1400px;margin:0 auto;padding:10px 20px 40px}
+.window{
+  position:relative;border-radius:8px;padding:34px 14px 14px;
+  background:linear-gradient(var(--frame-1),var(--frame-2));
+  border:3px solid var(--gold-dk);
+  box-shadow:0 0 0 1px #000,0 0 0 4px #3b2c14,0 0 0 5px #000,0 14px 30px rgba(0,0,0,.8), inset 0 0 30px rgba(0,0,0,.7);
+}
+/* Eck-Ornamente */
+.window::before,.window::after,.window .corner-b::before,.window .corner-b::after{
+  content:"";position:absolute;width:26px;height:26px;border:3px solid var(--gold);pointer-events:none;
+  filter:drop-shadow(0 0 2px #000);
+}
+.window::before{top:-7px;left:-7px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+.window::after{top:-7px;right:-7px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+.window .corner-b::before{bottom:-7px;left:-7px;border-right:0;border-top:0;border-radius:0 0 0 6px}
+.window .corner-b::after{bottom:-7px;right:-7px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+.win-title{
+  position:absolute;top:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  padding:6px 26px;font-family:"Cinzel";font-weight:800;font-size:15px;color:var(--gold);
+  background:linear-gradient(#2b221a,#0e0a08);border:2px solid var(--gold-dk);border-radius:4px;
+  box-shadow:0 3px 8px #000;text-shadow:0 1px 0 #000;
+}
+.win-title::before,.win-title::after{content:"◆";color:var(--accent-lt);margin:0 8px;font-size:10px;vertical-align:2px}
+.close-x{
+  position:absolute;top:6px;right:8px;width:22px;height:22px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,var(--accent-lt),var(--accent) 50%,var(--accent-dk));
+  border:2px solid var(--gold-dk);color:#fff;font:bold 12px/18px sans-serif;text-align:center;opacity:.85
+}
+.parchment{
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(110,70,20,.35)),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='.8' numOctaves='3'/><feColorMatrix values='0 0 0 0 .4  0 0 0 0 .28  0 0 0 0 .1  0 0 0 .18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    linear-gradient(var(--parch),var(--parch-2));
+  color:var(--ink);border-radius:4px;border:1px solid #6b4c1d;
+  box-shadow:inset 0 0 25px rgba(90,55,15,.45);
+}
+
+/* Reiter (Tabs) wie im Spiel unten am Fenster */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{
+  flex:1;min-width:0;padding:7px 6px 6px;cursor:pointer;
+  font-family:"Cinzel";font-weight:800;font-size:11px;color:#b9a27a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(#2b211a,#120d0a);border:2px solid #5b4422;border-radius:6px 6px 2px 2px;
+}
+.tab:hover{color:var(--gold-lt)}
+.tab.on{color:var(--gold);border-color:var(--gold);background:linear-gradient(var(--accent),var(--accent-dk));text-shadow:0 1px 0 #000}
+
+/* Liste links */
+.list{max-height:calc(100vh - 230px);overflow:auto;padding:4px;scrollbar-color:var(--gold-dk) #0d0907}
+.list-head{font-family:"Cinzel";font-size:12px;color:var(--gold-dk);margin:10px 4px 4px;text-transform:uppercase;letter-spacing:.1em}
+.entry{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;
+  padding:8px 10px;margin:3px 0;border-radius:4px;border:1px solid transparent;
+  background:linear-gradient(90deg,rgba(255,255,255,.04),transparent);color:var(--parch);font:inherit;
+}
+.entry:hover{border-color:var(--gold-dk);background:linear-gradient(90deg,rgba(248,209,106,.14),transparent)}
+.entry.on{border-color:var(--gold);background:linear-gradient(90deg,var(--bg-glow),rgba(248,209,106,.08))}
+.entry .ico{width:34px;height:34px;flex:none;border-radius:4px;border:2px solid var(--gold-dk);display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#4d3a24,#120d09);font-family:"Cinzel";font-weight:800;color:var(--gold);font-size:13px}
+.entry .t{flex:1;min-width:0}
+.entry .t b{display:block;font-weight:600;color:var(--gold-lt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry .t span{font-size:14px;color:#b59d77}
+.lvl{font-family:"Cinzel";font-size:12px;color:var(--gold);white-space:nowrap}
+
+/* Detailbereich */
+.detail{min-height:70vh}
+.detail .parchment{padding:22px 26px;min-height:60vh}
+.d-head{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;border-bottom:2px solid rgba(107,76,29,.45);padding-bottom:12px;margin-bottom:14px}
+.d-head h2{margin:0;font-size:30px;color:#4a1f05}
+.d-head .sub{font-style:italic;color:var(--ink-soft)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:13px;padding:2px 9px;border-radius:12px;background:rgba(80,50,15,.12);border:1px solid rgba(80,50,15,.35);color:var(--ink)}
+.chip.h{background:#7d1612;color:#fff;border-color:#3d0806}
+.chip.a{background:#1d4592;color:#fff;border-color:#0b1d45}
+.chip.n{background:#5a4a2a;color:#fff}
+.box{background:rgba(255,248,225,.35);border:1px solid rgba(107,76,29,.35);border-radius:4px;padding:10px 14px;margin:10px 0}
+.box h4{margin:0 0 4px;color:#5a1f05;font-size:14px}
+.sec-title{display:flex;align-items:center;gap:10px;color:#4a1f05;font-size:19px;margin:22px 0 8px}
+.sec-title::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,rgba(107,76,29,.6),transparent)}
+.inner-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 4px}
+.inner-tabs .tab{flex:none;padding:7px 16px;font-size:13px}
+
+/* Boss-Karten */
+.boss{border:1px solid rgba(107,76,29,.45);border-radius:6px;margin:12px 0;background:rgba(255,250,232,.3);overflow:hidden}
+.boss summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 14px}
+.boss summary::-webkit-details-marker{display:none}
+.boss summary .skull{width:32px;height:32px;flex:none}
+.boss summary h3{margin:0;font-size:17px;color:#3f1503;flex:1}
+.boss summary .tag{font-size:12px;font-style:italic;color:var(--ink-soft)}
+.boss summary .arrow{transition:transform .2s;color:#6b4c1d}
+.boss[open] summary .arrow{transform:rotate(90deg)}
+.boss .body{padding:0 16px 14px 58px}
+.boss .body p{margin:6px 0}
+.tactic{border-left:3px solid var(--accent);padding:4px 10px;background:rgba(120,40,20,.07)}
+html[data-faction="alliance"] .tactic{background:rgba(30,70,160,.07)}
+
+/* Beute (Item-Slots wie in der Taschenansicht) */
+.loot{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px}
+.item{
+  display:flex;align-items:center;gap:8px;padding:5px 8px 5px 5px;border-radius:4px;cursor:default;
+  background:linear-gradient(90deg,#1a1410,#2a2018);border:1px solid #000;box-shadow:inset 0 0 0 1px #4b3a22;
+}
+.item .slot{width:30px;height:30px;flex:none;border-radius:3px;border:2px solid currentColor;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#4a4033,#0d0b09);font-size:15px}
+.item .nm{font-weight:600;font-size:15px;line-height:1.15}
+.item .ty{font-size:12px;color:#bfae8c}
+.q-poor{color:var(--q-poor)} .q-common{color:var(--q-common)} .q-uncommon{color:var(--q-uncommon)}
+.q-rare{color:var(--q-rare)} .q-epic{color:var(--q-epic)} .q-legendary{color:var(--q-legendary)} .q-quest{color:#ffd100}
+.item .slot.q-rare{color:#2a8bff}
+
+/* Quests */
+.quest{border:1px solid rgba(107,76,29,.45);border-radius:6px;margin:12px 0;padding:12px 16px;background:rgba(255,250,232,.3)}
+.quest h3{margin:0 0 4px;font-size:17px;color:#3f1503;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.quest h3::before{content:"!";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#fff19a,#f2c200 55%,#8a6200);color:#3a2600;font-family:Georgia;font-weight:bold;font-size:14px;border:1px solid #5a3f00}
+.qgrid{display:grid;grid-template-columns:150px 1fr;gap:3px 12px;font-size:16px}
+.qgrid dt{font-weight:600;color:#5a1f05}
+.qgrid dd{margin:0}
+ol.steps{margin:6px 0 0;padding-left:22px}
+ol.steps li{margin:3px 0}
+.muted{color:var(--ink-soft);font-style:italic}
+.hidden-note{font-size:14px;color:var(--ink-soft);font-style:italic;margin:8px 0}
+.link{color:#7a2a00;text-decoration:underline dotted;cursor:pointer;background:none;border:0;font:inherit;padding:0}
+
+/* Tooltip im Spielstil */
+#tip{
+  position:fixed;z-index:50;pointer-events:none;max-width:320px;padding:8px 11px;border-radius:5px;
+  background:var(--tip-bg);border:1px solid #9e9e9e;box-shadow:0 0 0 1px #000,0 6px 16px #000;
+  color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;display:none
+}
+#tip .tn{font-size:15px;font-weight:bold}
+#tip .tw{color:#fff} #tip .ty2{color:#ffd100} #tip .tg{color:#9d9d9d}
+
+/* Willkommen */
+.welcome{text-align:center;padding:30px 10px}
+.welcome h2{font-size:32px;color:#4a1f05;margin:6px 0}
+.welcome .emblem{width:110px;height:110px}
+.stat-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:18px 0}
+.stat{min-width:120px;padding:10px 14px;border:1px solid rgba(107,76,29,.45);border-radius:6px;background:rgba(255,250,232,.35)}
+.stat b{display:block;font-family:"Cinzel";font-size:26px;color:#5a1f05}
+.footer{max-width:1400px;margin:0 auto;padding:0 20px 30px;color:#8a7656;font-size:14px;font-style:italic;text-align:center}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+.filter-row select,.filter-row label{font:inherit;font-size:14px;color:var(--gold-lt);background:#140f0b;border:1px solid var(--gold-dk);border-radius:4px;padding:4px 6px}
+.filter-row label{display:flex;align-items:center;gap:5px;cursor:pointer}
+
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;padding:10px 16px 30px}
+  .list{max-height:42vh}
+  .detail .parchment{padding:16px}
+  .boss .body{padding:0 12px 12px}
+  .qgrid{grid-template-columns:1fr}
+  .qgrid dt{margin-top:6px}
+  .topbar{padding:12px 16px}
+  .brand h1{font-size:21px}
+  .win-title{font-size:13px;padding:5px 14px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== Fraktions-Symbole (eigene, schlichte Grafiken) ===================== -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="sym-horde" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="29" fill="#2a0806" stroke="#f8d16a" stroke-width="3"/>
+      <g fill="#c8231b" stroke="#f8d16a" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M18 14 L46 50 L42 53 L14 17 Z"/>
+        <path d="M46 14 L18 50 L22 53 L50 17 Z"/>
+        <path d="M12 10 C6 18 8 26 16 28 L22 20 Z"/>
+        <path d="M52 10 C58 18 56 26 48 28 L42 20 Z"/>
+      </g>
+    </symbol>
+    <symbol id="sym-alliance" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="29" fill="#0a1a3d" stroke="#f8d16a" stroke-width="3"/>
+      <path d="M32 9 L50 16 V32 C50 44 42 51 32 56 C22 51 14 44 14 32 V16 Z" fill="#1f4fa8" stroke="#f8d16a" stroke-width="2"/>
+      <path d="M32 15 V50 M22 26 H42" stroke="#f8d16a" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="32" cy="26" r="3.5" fill="#f8d16a"/>
+    </symbol>
+    <symbol id="sym-skull" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="15" fill="#2a1a10" stroke="#a07a2a" stroke-width="2"/>
+      <path d="M16 7c-5 0-8 3.5-8 8 0 3 1.5 5 3.5 6v3h9v-3c2-1 3.5-3 3.5-6 0-4.5-3-8-8-8z" fill="#e8dcc0"/>
+      <circle cx="12.5" cy="15" r="2.2" fill="#2a1a10"/><circle cx="19.5" cy="15" r="2.2" fill="#2a1a10"/>
+      <path d="M14 24v2M16 24v2M18 24v2" stroke="#2a1a10" stroke-width="1.2"/>
+    </symbol>
+    <symbol id="sym-skull-rare" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="15" fill="#2a2a2a" stroke="#c0c0c0" stroke-width="2"/>
+      <path d="M16 7c-5 0-8 3.5-8 8 0 3 1.5 5 3.5 6v3h9v-3c2-1 3.5-3 3.5-6 0-4.5-3-8-8-8z" fill="#e8e8e8"/>
+      <circle cx="12.5" cy="15" r="2.2" fill="#2a2a2a"/><circle cx="19.5" cy="15" r="2.2" fill="#2a2a2a"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="emblem" id="brandEmblem"><use href="#sym-horde"/></svg>
+    <div>
+      <h1>Azeroth-Bibliothek</h1>
+      <small>Nachschlagewerk für Classic-Dungeons, Bosse, Beute &amp; Quests</small>
+    </div>
+  </div>
+  <div class="searchbox">
+    <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="5" fill="none" stroke="#f8d16a" stroke-width="2"/><path d="M10.5 10.5L15 15" stroke="#f8d16a" stroke-width="2"/></svg>
+    <input id="search" type="search" placeholder="Suchen: Dungeon, Boss, Gegenstand, Quest …" autocomplete="off">
+  </div>
+  <div class="faction-switch" role="group" aria-label="Fraktion">
+    <button data-f="horde"><svg><use href="#sym-horde"/></svg>Horde</button>
+    <button data-f="alliance"><svg><use href="#sym-alliance"/></svg>Allianz</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="window">
+    <span class="corner-b"></span>
+    <div class="win-title">Verzeichnis</div>
+    <div class="close-x">×</div>
+    <div class="tabs" id="mainTabs">
+      <button class="tab on" data-tab="dungeons">Dungeons</button>
+      <button class="tab" data-tab="quests">Quests</button>
+      <button class="tab" data-tab="monsters">Monster</button>
+      <button class="tab" data-tab="loot">Beute</button>
+    </div>
+    <div id="filters"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="window detail">
+    <span class="corner-b"></span>
+    <div class="win-title" id="detailTitle">Bibliothek</div>
+    <div class="close-x" id="closeDetail" style="cursor:pointer">×</div>
+    <div class="parchment" id="detail"></div>
+  </section>
+</main>
+
+<p class="footer">Inoffizielles Fan-Nachschlagewerk, nicht mit Blizzard Entertainment verbunden. Quest-, NPC- und Gegenstandsnamen stehen im englischen Original, damit sie sich leicht in Datenbanken nachschlagen lassen. Alle Daten stehen im Skript im Abschnitt <b>DATEN</b> und lassen sich dort ergänzen.</p>
+
+<div id="tip"></div>
+
+<script>
+/* =====================================================================
+   DATEN
+   ---------------------------------------------------------------------
+   Gegenstand:  { n: "Name", q: "rare", s: "Slot / Typ" }
+                q = poor | common | uncommon | rare | epic | legendary | quest
+   Quest-Seite: side = "A" (Allianz) | "H" (Horde) | "B" (beide)
+   Dungeon-Fraktion (empfohlen): "A" | "H" | "N" (neutral)
+   ===================================================================== */
+const DUNGEONS = [
+{
+  id:"rfc", name:"Ragefire Chasm", de:"Der Flammenschlund", zone:"Orgrimmar", level:"13–18", min:13, faction:"H",
+  entrance:"Mitten in Orgrimmar, in der Kluft der Schatten (Cleft of Shadow). Der Eingang liegt im Westteil der Kluft hinter dem Gebäude der Hexenmeister-Lehrer.",
+  desc:"Ein vulkanisches Höhlensystem unter Orgrimmar, in dem Troggs, Feuerelementare und der Kult der Verdammten (Searing Blade) hausen. Kurz und ideal als erster Dungeon für die Horde.",
+  bosses:[
+    {name:"Oggleflint", tag:"Trogg-Anführer", tactic:"Steht mit einigen Troggs im ersten Höhlenbereich. Adds zuerst einzeln ziehen, dann den Boss tanken – kein besonderer Mechanismus.", drops:[]},
+    {name:"Taragaman the Hungerer", tag:"Dämon", tactic:"Benutzt einen Feuerstoß-Flächenangriff und schlägt Spieler hoch (Uppercut). Heiler etwas abseits stellen, Nahkämpfer hinter den Boss. Sein Herz wird für die Quest „Slaying the Beast“ benötigt.", drops:[{n:"Taragaman the Hungerer's Heart",q:"quest",s:"Questgegenstand"}]},
+    {name:"Jergosh the Invoker", tag:"Hexenmeister des Kults", tactic:"Belegt Spieler mit Schwäche-Fluch und Feuerbrand (DoT). Flüche entfernen, falls möglich, und schnell Schaden machen.", drops:[]},
+    {name:"Bazzalan", tag:"Satyr", tactic:"Letzter Boss am Ende. Vergiftet seine Ziele (Gift entfernen lassen). Vorsicht vor den Kultisten in seiner Nähe – vorher räumen.", drops:[]}
+  ],
+  route:[
+    "Vom Eingang den Tunnel hinab, die Troggs am Lavafluss räumen und Oggleflint erledigen.",
+    "Weiter in die große Lavahöhle – rechts im Nebengang liegt die Leiche von Maur Grimtotem (Quest).",
+    "Durch die Höhle zu Taragaman, der auf einer Plattform über der Lava wartet.",
+    "Die Rampe nach oben folgen: Jergosh steht in einem Raum mit Kultisten, Bazzalan dahinter am Ende."
+  ],
+  quests:[
+    {name:"Testing an Enemy's Strength", side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Töte 8 Ragefire Troggs und 8 Ragefire Shamans.", steps:["Die Troggs findest du gleich im ersten Teil des Dungeons."], reward:"Erfahrung"},
+    {name:"Searching for the Lost Satchel", side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Finde Maur Grimtotems Leiche und bring seine Tasche zurück.", steps:["Die Leiche liegt in einer Nische der großen Lavahöhle.","Danach Folgequest „Returning the Lost Satchel“ in Donnerfels abgeben."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Hidden Enemies", side:"H", giver:"Thrall", loc:"Orgrimmar, Tal der Weisheit", obj:"Töte Bazzalan und Jergosh the Invoker.", steps:["Teil einer Questreihe über den Kult der Verdammten – erst die Vorquests bei Thrall erledigen.","Beide Bosse stehen im hinteren Teil des Dungeons."], reward:"Erfahrung, Gegenstand nach Wahl"},
+    {name:"Slaying the Beast", side:"H", giver:"Neeru Fireblade", loc:"Orgrimmar, Kluft der Schatten", obj:"Bring das Herz von Taragaman the Hungerer.", steps:["Taragaman töten und das Herz looten.","Neeru steht direkt neben dem Dungeon-Eingang."], reward:"Erfahrung"}
+  ]
+},
+{
+  id:"dm", name:"The Deadmines", de:"Die Todesminen", zone:"Westfall", level:"17–26", min:17, faction:"A",
+  entrance:"Im Süden von Westfall im Dorf Mondbruch (Moonbrook). In das Gebäude mit der Schmiede gehen, dort führt eine Treppe hinab in die Minen. Versammlungsstein in Westfall nahe Mondbruch.",
+  desc:"Hauptquartier der Defias-Bruderschaft unter Edwin VanCleef. Die Banditen bauen hier unter der Erde ein Kriegsschiff. Klassischer Allianz-Dungeon mit guter Beute.",
+  bosses:[
+    {name:"Rhahk'Zor", tag:"Oger-Vorarbeiter", tactic:"Steht direkt hinter der ersten Tür. Schlägt hart zu – Tank vorne halten, sonst nichts Besonderes. Er hält den Schlüssel für die erste Tür.", drops:[{n:"Rhahk'Zor's Hammer",q:"rare",s:"Zweihandstreitkolben"}]},
+    {name:"Miner Johnson", tag:"Seltener Gegner", rare:true, tactic:"Nicht immer da; erscheint in den Minengängen. Einfach tanken.", drops:[]},
+    {name:"Sneed's Shredder / Sneed", tag:"Holzfäller-Maschine", tactic:"Erst den Schredder zerstören, dann springt Sneed heraus. Sneed selbst ist schwach. Der Schredder lässt das Questobjekt für „Underground Assault“ fallen.", drops:[{n:"Buzzer Blade",q:"rare",s:"Einhanddolch"},{n:"Lavishly Jeweled Ring",q:"rare",s:"Finger"},{n:"Gnoam Sprecklesprocket",q:"quest",s:"Questgegenstand (Schredder)"}]},
+    {name:"Gilnid", tag:"Goblin-Schmelzmeister", tactic:"In der Schmelzerei. Vorher die Goblin-Handwerker in der Nähe räumen, sonst wird es schnell eng.", drops:[{n:"Smelting Pants",q:"rare",s:"Beine, Leder"}]},
+    {name:"Mr. Smite", tag:"Maat von VanCleef", tactic:"Nachdem die Kanone das Tor gesprengt hat, steht er am Ende des Piratenbereichs. Bei 66 % und 33 % betäubt er die Gruppe kurz und wechselt die Waffe. Den Raum vorher räumen und nach jedem Wechsel den Tank stabilisieren.", drops:[{n:"Smite's Mighty Hammer",q:"rare",s:"Zweihandstreitkolben"},{n:"Thief's Blade",q:"rare",s:"Einhandschwert"}]},
+    {name:"Captain Greenskin", tag:"Pirat", tactic:"Auf dem Schiff mit zwei Wachen. Die Wachen nacheinander ziehen, Greenskin wirkt Spalten – Nahkämpfer seitlich.", drops:[{n:"Emberstone Staff",q:"rare",s:"Stab"}]},
+    {name:"Edwin VanCleef", tag:"Anführer der Defias", tactic:"Ganz oben auf dem Schiffsdeck. Ruft bei niedriger Gesundheit zwei Blackguards herbei. Kontrolle (Schaf/Sap) für die Adds bereithalten, sonst einfach am Boss bleiben. Sein Kopf und ein Brief für Questreihen droppen hier.", drops:[{n:"Cruel Barb",q:"rare",s:"Einhandschwert"},{n:"Cape of the Brotherhood",q:"rare",s:"Rücken"},{n:"Blackened Defias Armor",q:"rare",s:"Brust, Leder"},{n:"Head of VanCleef",q:"quest",s:"Questgegenstand"},{n:"An Unsent Letter",q:"quest",s:"Startet eine Quest"}]},
+    {name:"Cookie", tag:"Schiffskoch", tactic:"Murloc-Koch im Schiffsbauch (Nebenraum). Optional, einfacher Kampf.", drops:[{n:"Cookie's Tenderizer",q:"rare",s:"Einhandstreitkolben"},{n:"Cookie's Stirring Rod",q:"rare",s:"Zauberstab"}]}
+  ],
+  route:[
+    "In Mondbruch ins Schmiedegebäude, die Treppe hinab und durch den Tunnel zum Instanzportal.",
+    "Erste Halle: Kobolde und Minenarbeiter räumen, dann Rhahk'Zor an der Tür.",
+    "Durch die Mine zu Sneed's Shredder in der Holzhalle, weiter zu Gilnid in der Gießerei.",
+    "In der Halle mit den Defias die Kanone vor dem großen Tor benutzen, um es zu sprengen.",
+    "Die Höhle mit dem Schiff: Mr. Smite unten, dann aufs Schiff – Greenskin, Cookie (unten) und ganz oben VanCleef."
+  ],
+  quests:[
+    {name:"Red Silk Bandanas", side:"A", giver:"Scout Riell", loc:"Westfall, Späherkuppe (oben im Turm)", obj:"Sammle 10 Red Silk Bandanas.", steps:["Droppen von den Defias-Gegnern im Dungeon."], reward:"Wahl zwischen Schulterstücken"},
+    {name:"Collecting Memories", side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Sammle 4 Miner's Union Cards.", steps:["Droppen von den untoten Minenarbeitern in den ersten Tunneln."], reward:"Tunneler's Boots"},
+    {name:"Oh Brother. . .", side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Bring das Explorers' League Badge von Foreman Thistlenettle.", steps:["Foreman Thistlenettle läuft als Untoter im Minenbereich herum."], reward:"Miner's Revenge"},
+    {name:"Underground Assault", side:"A", giver:"Shoni the Shilent", loc:"Sturmwind, Zwergendistrikt", obj:"Bring Gnoam Sprecklesprocket.", steps:["Droppt von Sneed's Shredder."], reward:"Wahl eines blauen/grünen Gegenstands"},
+    {name:"The Defias Brotherhood", side:"A", giver:"Gryan Stoutmantle", loc:"Westfall, Späherkuppe", obj:"Töte Edwin VanCleef und bring seinen Kopf.", steps:["Lange Questreihe, beginnt bei Gryan Stoutmantle und führt über Redridge (Wilder Mann) zurück.","Letzter Teil: VanCleef töten, Kopf zu Gryan."], reward:"Chausses of Westfall, Tunic of Westfall oder Staff of Westfall"},
+    {name:"The Unsent Letter", side:"A", giver:"Brief von VanCleef", loc:"Droppt von Edwin VanCleef", obj:"Bring den Brief zu Baros Alexston in Sturmwind.", steps:["Baros Alexston steht in Sturmwind im Stadthaus (Cathedral Square).","Startet die Reihe um Bazil Thredd (weiter im Verlies)."], reward:"Erfahrung, Folgequest"}
+  ]
+},
+{
+  id:"wc", name:"Wailing Caverns", de:"Die Höhlen des Wehklagens", zone:"Brachland", level:"17–24", min:17, faction:"H",
+  entrance:"Im Brachland südwestlich vom Wegekreuz, in einer Oase am Fuß eines Berges. Der Eingang ist ein großes Schlangenmaul im Fels; Questgeber stehen in der Höhle davor und oben auf dem Hügel.",
+  desc:"Druiden des Giftzahns (Fang) wurden vom Smaragdgrünen Albtraum verdorben. Tief in den Höhlen schläft Naralex – ein Jünger am Eingang will ihn wecken.",
+  bosses:[
+    {name:"Lady Anacondra", tag:"Druidin des Giftzahns", tactic:"Wirkt Schlaf und Blitzschlag. Unterbrechen, wenn möglich; Schlaf vom Tank fernhalten.", drops:[{n:"Belt of the Fang",q:"rare",s:"Taille, Leder"},{n:"Snakeskin Bag",q:"uncommon",s:"Tasche"}]},
+    {name:"Lord Cobrahn", tag:"Druide des Giftzahns", tactic:"Verwandelt sich in eine Schlange und wirkt Gift. Gift entfernen, ansonsten unkompliziert.", drops:[{n:"Leggings of the Fang",q:"rare",s:"Beine, Leder"}]},
+    {name:"Kresh", tag:"Riesenschildkröte", tactic:"Schwimmt im Wasser und wandert umher. Einfacher Kampf.", drops:[{n:"Kresh's Back",q:"rare",s:"Schild"},{n:"Worn Turtle Shell Shield",q:"uncommon",s:"Schild"}]},
+    {name:"Lord Pythas", tag:"Druide des Giftzahns", tactic:"Wirkt Donnerknall und Schlaf. Mit Unterbrechungen zügig erledigen.", drops:[{n:"Armor of the Fang",q:"rare",s:"Brust, Leder"},{n:"Stinging Viper",q:"rare",s:"Einhandstreitkolben"}]},
+    {name:"Skum", tag:"Echsenwesen", tactic:"Unterwasser-Bereich unterhalb des Wasserfalls. Einfach tanken.", drops:[{n:"Glowing Lizardscale Cloak",q:"rare",s:"Rücken"}]},
+    {name:"Lord Serpentis", tag:"Druide des Giftzahns", tactic:"Oben auf dem Plateau. Wirkt Schlaf und Heilung – Heilung unbedingt unterbrechen.", drops:[{n:"Footpads of the Fang",q:"rare",s:"Füße, Leder"}]},
+    {name:"Verdan the Everliving", tag:"Pflanzenwesen", tactic:"Stößt Spieler zurück (Knockback). Nicht mit dem Rücken zum Abgrund stehen.", drops:[{n:"Living Root",q:"rare",s:"Stab"},{n:"Seedcloud Buckler",q:"rare",s:"Schild"},{n:"Sporid Cape",q:"rare",s:"Rücken"}]},
+    {name:"Mutanus the Devourer", tag:"Albtraum-Murloc", tactic:"Erscheint erst, nachdem du den Disciple of Naralex durch den Dungeon begleitet hast und das Ritual beginnt. Wirkt Furcht und Schlaf – Gruppe nah zusammen halten, damit niemand weitere Gegner anzieht.", drops:[{n:"Mutant Scale Breastplate",q:"rare",s:"Brust, Kette"},{n:"Slime-encrusted Pads",q:"rare",s:"Schultern, Stoff"},{n:"Glowing Shard",q:"quest",s:"Startet eine Quest"}]}
+  ],
+  route:[
+    "Vor dem Eingang Quests annehmen (Ebru, Nalpak in der Höhle oben, Disciple of Naralex am Eingang).",
+    "Die Höhlen im Uhrzeigersinn: Anacondra, Pythas, Cobrahn – Reihenfolge flexibel.",
+    "Abwärts zu Kresh und Skum im Wasser, dann hinauf zu Lord Serpentis.",
+    "Mit allen vier Druiden tot: mit dem Disciple of Naralex sprechen und ihn begleiten.",
+    "Beim Ritual erscheinen Wellen von Gegnern, am Ende Mutanus. Danach erwacht Naralex."
+  ],
+  quests:[
+    {name:"Leaders of the Fang", side:"H", giver:"Nara Wildmane", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Bring die Edelsteine von Cobrahn, Anacondra, Pythas und Serpentis.", steps:["Alle vier Druiden-Bosse töten.","Vorquest über Hamuul Runetotem / den Wailing-Caverns-Einstieg in Donnerfels."], reward:"Crescent Staff oder Wingblade"},
+    {name:"Deviate Hides", side:"B", giver:"Nalpak", loc:"Brachland, Höhle über dem Eingang", obj:"Sammle 20 Deviate Hides.", steps:["Droppen von den abgewichenen (Deviate) Tieren im Dungeon."], reward:"Wahl zwischen grünen Gegenständen"},
+    {name:"Smart Drinks", side:"B", giver:"Mebok Mizzyrix", loc:"Ratschet", obj:"Sammle 6 Portions of Wailing Essence.", steps:["Droppen von den Ectoplasma-Wesen in den Höhlen."], reward:"Erfahrung, Tränke"},
+    {name:"Trouble at the Docks", side:"B", giver:"Crane Operator Bigglefuzz", loc:"Ratschet, Hafen", obj:"Bring die gestohlene Flasche von Mad Magglish zurück.", steps:["Mad Magglish ist ein getarnter Goblin in den Höhlen; er versteckt sich am Wasserfall."], reward:"Erfahrung"},
+    {name:"The Glowing Shard", side:"B", giver:"Glowing Shard (Drop)", loc:"Droppt von Mutanus the Devourer", obj:"Lass den Splitter in Ratschet untersuchen.", steps:["Führt zu Falla Sagewind oben auf dem Hügel über den Höhlen."], reward:"Wahl eines Gegenstands"}
+  ]
+},
+{
+  id:"sfk", name:"Shadowfang Keep", de:"Burg Schattenfang", zone:"Silberwald", level:"22–30", min:22, faction:"H",
+  entrance:"Im Silberwald auf einem Hügel südlich vom Grabmal (The Sepulcher), an der Straße Richtung Pyrewood. Für die Allianz ein langer Weg über das Sumpfland oder Arathi.",
+  desc:"Einst Sitz von Baron Silverlaine, nun Festung des wahnsinnigen Erzmagiers Arugal, der hier seine Worgen hält.",
+  bosses:[
+    {name:"Rethilgore", tag:"Worgen-Kerkermeister", tactic:"Im Kerker am Eingang. Danach den Gefangenen ansprechen: Allianz = Sorcerer Ashcrombe, Horde = Deathstalker Adamant. Er öffnet die Tür zum Hof.", drops:[]},
+    {name:"Razorclaw the Butcher", tag:"Worgen", tactic:"In der Küche. Einfacher Kampf, Hund-Adds vorher räumen.", drops:[{n:"Butcher's Cleaver",q:"rare",s:"Einhandaxt"}]},
+    {name:"Baron Silverlaine", tag:"Geist", tactic:"In seinem Speisesaal. Verflucht Spieler – Flüche entfernen.", drops:[{n:"Silverlaine's Family Seal",q:"rare",s:"Finger"},{n:"Baron's Scepter",q:"rare",s:"Einhandstreitkolben"}]},
+    {name:"Commander Springvale", tag:"Untoter Paladin", tactic:"Heilt sich und wirkt Gottesschild. Heilung unterbrechen, Adds zuerst töten.", drops:[{n:"Commander's Crest",q:"rare",s:"Schild"},{n:"Haunting Blade",q:"rare",s:"Zweihandschwert"}]},
+    {name:"Odo the Blindwatcher", tag:"Worgen", tactic:"Auf der Brücke, wird mit weiteren Wölfen gepullt. Wird mit jedem toten Begleiter stärker – Odo zuerst töten.", drops:[{n:"Odo's Ley Staff",q:"rare",s:"Stab"}]},
+    {name:"Fenrus the Devourer", tag:"Riesenwolf", tactic:"Vergiftet. Nach seinem Tod erscheint der Geist von Vol'tuk. Gift entfernen.", drops:[]},
+    {name:"Wolf Master Nandos", tag:"Worgen", tactic:"Ruft beim Pull mehrere Wölfe; Gruppe vorbereiten, Flächenschaden hilft.", drops:[]},
+    {name:"Archmage Arugal", tag:"Endboss", tactic:"Teleportiert sich durch den Raum, wirkt Schattenblitze und verwandelt Spieler in Worgen. Spieler bleiben am besten verteilt; wenn er auf die Empore springt, Fernkämpfer ihn weiter beschießen lassen.", drops:[{n:"Robes of Arugal",q:"rare",s:"Brust, Stoff"},{n:"Belt of Arugal",q:"rare",s:"Taille, Stoff"},{n:"Meteor Shard",q:"rare",s:"Einhanddolch"},{n:"Head of Arugal",q:"quest",s:"Questgegenstand"}]}
+  ],
+  route:[
+    "Im Kerker Rethilgore töten und den passenden Gefangenen sprechen – er öffnet die Hoftür.",
+    "Über den Hof zu Razorclaw (Küche) und Baron Silverlaine (Speisesaal).",
+    "Durch die Gänge zu Commander Springvale, dann Odo auf der Brücke.",
+    "Fenrus, die Bibliothek, Wolf Master Nandos – dann hinauf zu Arugal."
+  ],
+  quests:[
+    {name:"Deathstalkers in Shadowfang", side:"H", giver:"High Executor Hadrec", loc:"Silberwald, Grabmal", obj:"Finde die vermissten Todespirscher.", steps:["Deathstalker Adamant ist im Kerker gefangen, Deathstalker Vincent liegt im Hof."], reward:"Erfahrung"},
+    {name:"The Book of Ur", side:"H", giver:"Keeper Bel'dugur", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch von Ur.", steps:["Liegt in der Bibliothek auf einem Tisch vor Nandos."], reward:"Grizzled Boots oder Steel-clasped Bracers"},
+    {name:"Arugal Must Die", side:"H", giver:"Dalar Dawnweaver", loc:"Silberwald, Grabmal", obj:"Bring den Kopf von Arugal.", steps:["Arugal am Ende töten."], reward:"Seal of Sylvanas"},
+    {name:"The Test of Righteousness", side:"A", giver:"Jordan Stilwell", loc:"Eisenschmiede, außerhalb am Eingang (Paladin-Quest)", obj:"Sammle Materialien für Jordan's Hammer.", steps:["Teil der Paladin-Questreihe für Verigan's Fist.","Ein Teil der Materialien liegt in Burg Schattenfang (u. a. Jordan's Weapon Notes auf dem Weg durch die Burg)."], reward:"Verigan's Fist (nach der Reihe)"}
+  ]
+},
+{
+  id:"bfd", name:"Blackfathom Deeps", de:"Die Tiefschwarze Grotte", zone:"Eschental", level:"24–32", min:24, faction:"N",
+  entrance:"An der Westküste des Eschentals am Zoram-Strand. Der Eingang liegt in einer überfluteten Ruine – ein Stück schwimmen bzw. tauchen.",
+  desc:"Ein versunkener Tempel der Nachtelfen, besetzt vom Twilight's Hammer und Naga. In der Tiefe wartet Aku'mai.",
+  bosses:[
+    {name:"Ghamoo-ra", tag:"Riesenschildkröte", tactic:"Im Wasserbereich am Anfang. Sehr robust, aber harmlos.", drops:[{n:"Tortoise Armor",q:"rare",s:"Brust, Kette"}]},
+    {name:"Lady Sarevess", tag:"Naga", tactic:"Mit zwei Wachen. Sie verlangsamt und schießt mit Pfeilen. Wachen zuerst kontrollieren oder töten.", drops:[{n:"Naga Battle Gloves",q:"rare",s:"Hände, Leder"}]},
+    {name:"Gelihast", tag:"Murloc-Anführer", tactic:"In einer Höhle mit vielen Murlocs; die Gruppe vorher einzeln ziehen.", drops:[]},
+    {name:"Lorgus Jett", tag:"Twilight-Schamane", tactic:"Wandert in einem von mehreren Gebieten umher. Unterbrechen und schnell töten (Questziel).", drops:[]},
+    {name:"Baron Aquanis", tag:"Wasserelementar", tactic:"Wird über das Fathom Stone gerufen (Hordenquest). Normaler Kampf.", drops:[{n:"Fathom Core",q:"quest",s:"Startet eine Quest (Horde)"}]},
+    {name:"Twilight Lord Kelris", tag:"Anführer des Kults", tactic:"Wirkt Schlaf und Gedankenschlag. Erst die Akolythen in der Halle räumen. Danach die Feuerschalen anzünden, um zum Endboss zu gelangen – dabei kommen Wellen von Gegnern.", drops:[{n:"Rod of the Sleepwalker",q:"rare",s:"Zauberstab"},{n:"Head of Kelris",q:"quest",s:"Questgegenstand"}]},
+    {name:"Aku'mai", tag:"Hydra", tactic:"Endboss im letzten Raum. Spuckt Gift und wird später rasend. Heiler mit vollem Mana starten.", drops:[]}
+  ],
+  route:[
+    "Durch den überfluteten Eingang, rechts Ghamoo-ra, dann durch die Gänge zu Lady Sarevess.",
+    "Weiter zu Gelihast; unterwegs nach Lorgus Jett Ausschau halten.",
+    "Über den großen Raum mit dem Wasser zu Kelris und den vier Feuerschalen.",
+    "Feuerschalen anzünden, Gegnerwellen abwehren – dann öffnet sich der Weg zu Aku'mai."
+  ],
+  quests:[
+    {name:"Knowledge in the Deeps", side:"A", giver:"Gerrig Bonegrip", loc:"Eisenschmiede, Vergessene Höhle", obj:"Bring das Lorgalis Manuscript.", steps:["Liegt in einem Unterwasser-Abschnitt im Teich hinter dem Eingang."], reward:"Gerrig's Ring (Wahl)"},
+    {name:"Researching the Corruption", side:"A", giver:"Gershala Nightwhisper", loc:"Dunkelküste, Auberdine", obj:"Sammle 8 Corrupt Brain stems.", steps:["Droppen von den Satyrn und Naga im Dungeon."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"In Search of Thaelrid", side:"A", giver:"Dawnwatcher Shaedlass", loc:"Darnassus", obj:"Finde Argent Guard Thaelrid in der Tiefschwarzen Grotte.", steps:["Thaelrid steht in der Nähe von Gelihast; er gibt „Blackfathom Villainy“."], reward:"Folgequest"},
+    {name:"Blackfathom Villainy", side:"B", giver:"Argent Guard Thaelrid (Allianz) / Bashana Runetotem (Horde, Donnerfels)", loc:"Im Dungeon bzw. Donnerfels", obj:"Bring den Kopf von Twilight Lord Kelris.", steps:["Kelris töten.","Allianz gibt bei Dawnwatcher Selgorm in Darnassus ab, Horde bei Bashana Runetotem."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Amongst the Ruins", side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Bring den Fathom Core.", steps:["Baron Aquanis töten, sein Kern startet bzw. erfüllt die Quest."], reward:"Erfahrung"},
+    {name:"Allegiance to the Old Gods", side:"H", giver:"Damp Note (Drop)", loc:"Droppt von Ghamoo-ra", obj:"Töte Lorgus Jett.", steps:["Notiz bei Je'neu Sancrea in Zoram'gar abgeben, dann Lorgus Jett im Dungeon töten."], reward:"Erfahrung, Gegenstand"},
+    {name:"The Essence of Aku'Mai", side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Sammle 20 Sapphires of Aku'Mai.", steps:["Kristalle an den Höhlenwänden im ersten Tunnel vor dem Instanzportal."], reward:"Erfahrung"}
+  ]
+},
+{
+  id:"stocks", name:"The Stockade", de:"Das Verlies", zone:"Sturmwind", level:"24–32", min:24, faction:"A",
+  entrance:"Mitten in Sturmwind, im Magierviertel-Kanal bzw. am Kanal bei der Altstadt (Stormwind Stockade).",
+  desc:"Das Gefängnis von Sturmwind – die Insassen haben einen Aufstand gestartet. Kurz und linear.",
+  bosses:[
+    {name:"Targorr the Dread", tag:"Oger", tactic:"Schlägt hart, wird bei niedriger Gesundheit rasend. Kurz vor Ende alle Fähigkeiten zünden.", drops:[]},
+    {name:"Kam Deepfury", tag:"Dunkeleisenzwerg", tactic:"Nicht besonders gefährlich. Questziel für „The Fury Runs Deep“.", drops:[{n:"Head of Deepfury",q:"quest",s:"Questgegenstand"}]},
+    {name:"Hamhock", tag:"Oger", tactic:"Wirkt Kettenblitzschlag und Kampfrausch – Gruppe etwas verteilen.", drops:[]},
+    {name:"Bazil Thredd", tag:"Defias-Anführer", tactic:"Im hinteren Gang. Einfacher Kampf; sein Kopf wird für die Defias-Questreihe gebraucht.", drops:[{n:"Head of Bazil Thredd",q:"quest",s:"Questgegenstand"}]},
+    {name:"Dextren Ward", tag:"Mörder", tactic:"Furcht auf Spieler – Gruppe nicht zu nah an anderen Zellen kämpfen.", drops:[{n:"Hand of Dextren Ward",q:"quest",s:"Questgegenstand"}]},
+    {name:"Bruegal Ironknuckle", tag:"Seltener Gegner", rare:true, tactic:"Erscheint nicht immer, im hinteren Ostflügel.", drops:[]}
+  ],
+  route:[
+    "Vom Eingang den Mittelgang entlang – die Gänge zweigen links und rechts ab.",
+    "Linker Flügel: Targorr, Kam Deepfury. Rechter Flügel: Hamhock, Dextren Ward.",
+    "Am Ende des Hauptgangs Bazil Thredd."
+  ],
+  quests:[
+    {name:"Quell The Uprising", side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Eingang des Verlieses", obj:"Töte 10 Defias Prisoners, 8 Defias Convicts und 8 Defias Insurgents.", steps:["Alle drei Arten im ganzen Dungeon."], reward:"Erfahrung"},
+    {name:"The Color of Blood", side:"A", giver:"Nikova Raskol", loc:"Sturmwind, Altstadt", obj:"Sammle 10 Red Wool Bandanas.", steps:["Droppen von den Gefangenen im Dungeon."], reward:"Erfahrung"},
+    {name:"The Fury Runs Deep", side:"A", giver:"Motley Garmason", loc:"Sumpfland, Dun Modr", obj:"Bring den Kopf von Kam Deepfury.", steps:["Teil der Dunkeleisen-Questreihe im Sumpfland."], reward:"Wahl eines Schildes / Gegenstands"},
+    {name:"What Comes Around...", side:"A", giver:"Guard Berton", loc:"Rotkammgebirge, Seenhain", obj:"Bring den Kopf von Targorr the Dread.", steps:["Targorr im linken Flügel töten."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Crime and Punishment", side:"A", giver:"Councilman Millstipe", loc:"Dämmerwald, Dunkelhain", obj:"Bring die Hand von Dextren Ward.", steps:["Dextren Ward im rechten Flügel töten."], reward:"Wahl zwischen Rüstungsteilen"},
+    {name:"The Stockade Riots", side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Verlies", obj:"Bring den Kopf von Bazil Thredd.", steps:["Teil der Questreihe aus „The Unsent Letter“ (Todesminen)."], reward:"Folgequest"}
+  ]
+},
+{
+  id:"sm", name:"Scarlet Monastery", de:"Das Scharlachrote Kloster", zone:"Tirisfal", level:"26–45", min:26, faction:"N",
+  entrance:"Im Nordosten von Tirisfal. Das Kloster hat vier Flügel mit eigenen Eingängen: Friedhof, Bibliothek, Waffenkammer und Kathedrale.",
+  desc:"Festung des Scharlachroten Kreuzzugs. Vier getrennte Instanzen mit steigender Stufe – Friedhof (26–36), Bibliothek (29–39), Waffenkammer (32–42), Kathedrale (35–45). Für Waffenkammer und Kathedrale wird der Scarlet Key aus der Bibliothek benötigt (in Classic).",
+  bosses:[
+    {name:"Interrogator Vishas", tag:"Friedhof", tactic:"Wirkt Schattenwort: Schmerz. Einfacher Kampf.", drops:[]},
+    {name:"Bloodmage Thalnos", tag:"Friedhof", tactic:"Untoter Magier mit Feuer- und Schattenzaubern. Zügig töten.", drops:[]},
+    {name:"Houndmaster Loksey", tag:"Bibliothek", tactic:"Kommt mit Hunden. Hunde schnell töten oder mit Flächenschaden beseitigen.", drops:[{n:"Dog Whistle",q:"rare",s:"Schmuckstück"}]},
+    {name:"Arcanist Doan", tag:"Bibliothek", tactic:"Bei ca. 50 % wirkt er einen Schild und danach eine riesige Arkan-Explosion – sofort von ihm weglaufen, wenn er den Schild wirkt! Danach zurück und weiter angreifen.", drops:[{n:"Illusionary Rod",q:"rare",s:"Stab"},{n:"Hypnotic Blade",q:"rare",s:"Einhanddolch"},{n:"Robe of Doan",q:"rare",s:"Brust, Stoff"},{n:"Mantle of Doan",q:"rare",s:"Schultern, Stoff"}]},
+    {name:"Herod", tag:"Waffenkammer", tactic:"Bei Wirbelwind („Blades of Light!“) Nahkämpfer weg. Nach seinem Tod stürmen viele Scharlachrote Rekruten herein – zurück in den Gang ziehen und mit Flächenschaden erledigen.", drops:[{n:"Ravager",q:"rare",s:"Zweihandaxt"},{n:"Herod's Shoulder",q:"rare",s:"Schultern, Kette"},{n:"Scarlet Leggings",q:"rare",s:"Beine, Kette"}]},
+    {name:"Scarlet Commander Mograine", tag:"Kathedrale", tactic:"Erst Mograine töten. Danach erscheint High Inquisitor Whitemane, legt die Gruppe kurz schlafen und belebt Mograine wieder. Nach der Wiederbelebung beide gleichzeitig kontrollieren – Whitemane zuerst töten (sie heilt).", drops:[{n:"Mograine's Might",q:"rare",s:"Zweihandstreitkolben"},{n:"Gauntlets of Divinity",q:"rare",s:"Hände, Platte"}]},
+    {name:"High Inquisitor Whitemane", tag:"Kathedrale", tactic:"Siehe Mograine. Heilungen unterbrechen, Schlaf nach Möglichkeit verhindern.", drops:[{n:"Whitemane's Chapeau",q:"rare",s:"Kopf, Stoff"},{n:"Triune Amulet",q:"rare",s:"Hals"},{n:"Hand of Righteousness",q:"rare",s:"Einhandstreitkolben"}]}
+  ],
+  route:[
+    "Friedhof: durch die Gruft zu Vishas und Thalnos.",
+    "Bibliothek: Loksey im ersten Saal, dann durch die Bibliothek zu Doan. Den Scarlet Key mitnehmen (Truhe hinter Doan).",
+    "Waffenkammer: durch Übungshallen zu Herod.",
+    "Kathedrale: durch Hof und Hallen zu Mograine – dann Whitemane."
+  ],
+  quests:[
+    {name:"Into The Scarlet Monastery", side:"H", giver:"Varimathras", loc:"Unterstadt, Königsviertel", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Alle drei Flügel mit Bossen erledigen.","Vorquest über „The Scarlet Crusade“ in Unterstadt."], reward:"Sword of Omen, Prophetic Cane oder Dragon's Blood Necklace"},
+    {name:"In the Name of the Light", side:"A", giver:"Raleigh the Devout", loc:"Vorgebirge des Hügellands, Süderstade", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Vorquests beginnen bei Brother Crowley in Sturmwind (Kathedrale).","Alle vier Ziele erledigen."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Compendium of the Fallen", side:"H", giver:"Sage Truthseeker", loc:"Donnerfels, Anhöhe der Geister", obj:"Bring das Compendium of the Fallen aus der Bibliothek.", steps:["Steht in der Bibliothek auf einem Bücherregal.","Nicht für Untote verfügbar."], reward:"Vanquisher's Sword, Horizon Choker oder Omega Orb"},
+    {name:"Mythology of the Titans", side:"A", giver:"Librarian Mae Paledust", loc:"Eisenschmiede, Halle der Forscher", obj:"Bring das Buch „Mythology of the Titans“.", steps:["Liegt in der Bibliothek auf dem Boden eines Raums."], reward:"Explorers' League Commendation"},
+    {name:"Hearts of Zeal", side:"H", giver:"Master Apothecary Faranell", loc:"Unterstadt, Apothekarium", obj:"Sammle 20 Hearts of Zeal.", steps:["Droppen von Scharlachroten Gegnern im Kloster."], reward:"Erfahrung"},
+    {name:"Test of Lore", side:"H", giver:"Parqual Fintallas", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch „Beginnings of the Undead Threat“.", steps:["In der Bibliothek in einem Regal."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Vorrel Sengutz", side:"H", giver:"Monika Sengutz", loc:"Vorgebirge des Hügellands, Tarrens Mühle", obj:"Bring Vorrels Ehering zurück.", steps:["Vorrel Sengutz ist ein NPC im Friedhof-Flügel."], reward:"Erfahrung"}
+  ]
+},
+{
+  id:"zf", name:"Zul'Farrak", de:"Zul'Farrak", zone:"Tanaris", level:"44–54", min:44, faction:"N",
+  entrance:"Im Nordwesten von Tanaris. Von Gadgetzan aus nach Westen/Nordwesten durch die Wüste; das Tor liegt in einer großen Trollstadt.",
+  desc:"Die Stadt der Sandwut-Trolle. Bekannt für das große Treppen-Event, die Riesenhydra Gahz'rilla und die vielen Quests aus Gadgetzan.",
+  bosses:[
+    {name:"Antu'sul", tag:"Basilisken-Meister", tactic:"Im Basiliskengehege. Ruft bei niedriger Gesundheit Basilisken – Kampf möglichst oben am Eingang beginnen.", drops:[]},
+    {name:"Theka the Martyr", tag:"Troll", tactic:"Wird zum Skarabäus, sobald er niedrig ist; dann unverwundbar gegen körperlichen Schaden. Zauber nutzen.", drops:[{n:"First Mosh'aru Tablet",q:"quest",s:"Questgegenstand"}]},
+    {name:"Witch Doctor Zum'rah", tag:"Hexendoktor", tactic:"Auf dem Friedhof. Wenn man sich nähert, steigen Zombies aus den Gräbern. Zum'rah zuerst ausschalten.", drops:[]},
+    {name:"Sergeant Bly & Gruppe", tag:"Gefangene (Event)", tactic:"Den Gong auf der Pyramide schlagen bzw. die Käfige öffnen: Bly und seine Leute kämpfen zuerst gegen die Trollwellen an der Treppe. Danach bekämpfen sie dich (Ausnahme: Weegli). Die Treppe halten, Flächenschaden einsetzen. Weegli sprengt danach das Tor.", drops:[{n:"Divino-matic Rod",q:"quest",s:"Questgegenstand"}]},
+    {name:"Nekrum Gutchewer & Shadowpriest Sezz'ziz", tag:"Treppen-Event", tactic:"Kommen am Ende der Trollwellen. Sezz'ziz heilt – zuerst unterbrechen und töten.", drops:[]},
+    {name:"Hydromancer Velratha", tag:"Naga", tactic:"Am heiligen Teich. Normaler Kampf.", drops:[{n:"Tiara of the Deep",q:"quest",s:"Questgegenstand"},{n:"Second Mosh'aru Tablet",q:"quest",s:"Questgegenstand"}]},
+    {name:"Gahz'rilla", tag:"Riesenhydra (beschwört)", tactic:"Mit dem Mallet of Zul'Farrak den Gong am Teich schlagen. Friert Spieler ein und schleudert sie weg. Nicht am Teichrand stehen.", drops:[{n:"Gahz'rilla Fang",q:"rare",s:"Einhanddolch"},{n:"Gahz'rilla Scale Armor",q:"rare",s:"Brust, Kette"},{n:"Gahz'rilla's Electrified Scale",q:"quest",s:"Questgegenstand"}]},
+    {name:"Chief Ukorz Sandscalp", tag:"Endboss", tactic:"Mit seinem Leibwächter Ruuzlu auf der Pyramide hinter dem Tor. Ruuzlu zuerst oder kontrollieren.", drops:[]}
+  ],
+  route:[
+    "Antu'sul und Theka zuerst (Nebenbereiche links), dann Zum'rah auf dem Friedhof.",
+    "Zur großen Pyramide: Gefangene befreien und das Treppen-Event durchkämpfen.",
+    "Weegli sprengt das Tor – dahinter Chief Ukorz Sandscalp.",
+    "Am heiligen Teich Velratha; mit dem Mallet Gahz'rilla beschwören."
+  ],
+  quests:[
+    {name:"Divino-matic Rod", side:"B", giver:"Chief Engineer Bilgewhizzle", loc:"Tanaris, Gadgetzan", obj:"Bring den Divino-matic Rod.", steps:["Droppt von Sergeant Bly nach dem Treppen-Event."], reward:"Wahl eines Gegenstands"},
+    {name:"Gahz'rilla", side:"B", giver:"Wizzle Brassbolts", loc:"Tausend Nadeln, Mirage Raceway", obj:"Bring Gahz'rilla's Electrified Scale.", steps:["Mallet of Zul'Farrak wird benötigt (Questreihe aus dem Hinterland/Jintha'Alor).","Gahz'rilla am Teich beschwören."], reward:"Carrot on a Stick"},
+    {name:"Tiara of the Deep", side:"B", giver:"Tabetha", loc:"Düstermarschen, Tabethas Hütte", obj:"Bring die Tiara of the Deep.", steps:["Droppt von Hydromancer Velratha."], reward:"Wahl eines Gegenstands"},
+    {name:"The Prophecy of Mosh'aru", side:"B", giver:"Yeh'kinya", loc:"Tanaris, Hafen von Steamwheedle", obj:"Bring beide Mosh'aru-Tafeln.", steps:["Erste Tafel von Theka the Martyr, zweite von Hydromancer Velratha."], reward:"Folgequest (Ei für den Tempel von Atal'Hakkar)"},
+    {name:"Troll Temper", side:"B", giver:"Trenton Lighthammer", loc:"Tanaris, Gadgetzan", obj:"Sammle 20 Vials of Troll Temper.", steps:["Droppen von den Trollen in Zul'Farrak."], reward:"Erfahrung, Ruf"},
+    {name:"Scarab Shells", side:"B", giver:"Tran'rek", loc:"Tanaris, Gadgetzan", obj:"Sammle 5 Uncracked Scarab Shells.", steps:["Droppen von den Skarabäen in Zul'Farrak."], reward:"Erfahrung"}
+  ]
+},
+{
+  id:"mara", name:"Maraudon", de:"Maraudon", zone:"Desolace", level:"46–55", min:46, faction:"N",
+  entrance:"Im Westen von Desolace. Vor der Instanz gibt es zwei Höhlen (orange und lila), die zu zwei Eingängen führen. Der innere Eingang (Erdinnere) wird mit dem Scepter of Celebras über ein Portal erreicht.",
+  desc:"Grabstätte von Zaetar, Sohn des Cenarius. Seine Geliebte, Prinzessin Theradras, verdirbt das Land und die Zentauren.",
+  bosses:[
+    {name:"Noxxion", tag:"Lila Seite", tactic:"Teilt sich in kleine Schleime, wenn er unverwundbar wird. Die Schleime mit Flächenschaden töten.", drops:[]},
+    {name:"Razorlash", tag:"Lila Seite", tactic:"Wandert im Höhlengang. Normaler Kampf.", drops:[]},
+    {name:"Lord Vyletongue", tag:"Orange Seite", tactic:"Satyr-Lord, teleportiert sich und wird unsichtbar. Gruppe eng zusammen halten.", drops:[]},
+    {name:"Celebras the Cursed", tag:"Zentrale Höhlen", tactic:"Verwurzelt Spieler. Nach dem Tod erscheint sein Geist und gibt eine Quest für das Szepter.", drops:[]},
+    {name:"Landslide", tag:"Erdinnere", tactic:"Großer Steinriese. Wirft Spieler zurück und beschwört Steinwesen.", drops:[]},
+    {name:"Tinkerer Gizlock", tag:"Erdinnere", tactic:"Goblin mit Bomben; nicht zu lange in seiner Nähe stehen.", drops:[]},
+    {name:"Rotgrip", tag:"Erdinnere", tactic:"Krokilisk im Wasser. Einfacher Kampf.", drops:[]},
+    {name:"Princess Theradras", tag:"Endboss", tactic:"Schleudert Felsbrocken, die Spieler zurückwerfen und betäuben. Tank mit dem Rücken an eine Wand. Nach ihrem Tod erscheint der Geist von Zaetar.", drops:[{n:"Blackstone Ring",q:"rare",s:"Finger"}]}
+  ],
+  route:[
+    "Lila Höhle: Noxxion und Razorlash. Orange Höhle: Lord Vyletongue (für das Szepter).",
+    "Beide Seiten treffen sich – weiter zu Celebras. Sein Geist gibt die Szepter-Quest.",
+    "Hinunter zum großen Wasserfall in die Erdinnere: Landslide, Gizlock, Rotgrip.",
+    "Prinzessin Theradras am Ende in der Höhle hinter dem See."
+  ],
+  quests:[
+    {name:"Legends of Maraudon", side:"B", giver:"Cavindra", loc:"Desolace, Höhle vor Maraudon (orange Seite)", obj:"Bring die beiden Teile des Celebrian-Stabs.", steps:["Celebrian Rod von Noxxion, Celebrian Diamond von Lord Vyletongue.","Danach Celebras' Geist helfen – führt zum Scepter of Celebras (Abkürzung in die Erdinnere)."], reward:"Scepter of Celebras"},
+    {name:"Corruption of Earth and Seed", side:"B", giver:"Keeper Marandis (Allianz, Nijelspitze) / Selendra (Horde)", loc:"Desolace", obj:"Töte Princess Theradras.", steps:["Theradras am Ende töten.","Die Abgabe für Horde ist bei Selendra in Desolace."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Twisted Evils", side:"B", giver:"Willow", loc:"Desolace", obj:"Sammle 25 Theradric Crystal Carvings.", steps:["Droppen von fast allen Gegnern in Maraudon."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Vyletongue Corruption", side:"B", giver:"Talendria (Allianz, Nijelspitze) / Vark Battlescar (Horde, Schattenflucht)", loc:"Desolace", obj:"Fülle die Coated Cerulean Vial am orangefarbenen Kristallteich und reinige 8 Pflanzen.", steps:["Die Phiole am orangefarbenen Teich vor der Instanz füllen.","In der Instanz damit Pflanzen reinigen."], reward:"Wahl eines grünen Gegenstands"}
+  ]
+},
+{
+  id:"brd", name:"Blackrock Depths", de:"Schwarzfelstiefen", zone:"Schwarzfels (Sengende Schlucht / Brennende Steppe)", level:"52–60", min:52, faction:"N",
+  entrance:"Im Schwarzfels zwischen der Sengenden Schlucht und der Brennenden Steppe. Im Inneren des Berges über die Ketten nach unten – der Eingang liegt ganz unten.",
+  desc:"Die riesige Hauptstadt der Dunkeleisenzwerge unter Imperator Dagran Thaurissan. Einer der umfangreichsten Dungeons mit vielen Questreihen und der Einstimmung auf den Geschmolzenen Kern.",
+  bosses:[
+    {name:"Lord Roccor", tag:"Feuerelementar", tactic:"Nahe dem Eingang. Wirft Erdschock; Fernkämpfer verteilen.", drops:[]},
+    {name:"High Interrogator Gerstahn", tag:"Gefängnis", tactic:"Schattenpriesterin. Psychischer Schrei – Gruppe nicht dicht an anderen Gegnern.", drops:[]},
+    {name:"Ring of Law", tag:"Arena-Event", tactic:"Beim Betreten der Arena startet ein zufälliges Event mit einem Arena-Boss (u. a. Gorosh, Anub'shiah, Eviscerator), danach Theldren oder der Arenameister. Nicht zu lange in der Arena trödeln.", drops:[]},
+    {name:"Golem Lord Argelmach", tag:"Golemmeister", tactic:"Weckt die Golems im Raum. Golems vorher einzeln ziehen.", drops:[]},
+    {name:"Hurley Blackbreath", tag:"Grim Guzzler", tactic:"Erscheint, wenn man das Dark Iron Ale stiehlt. Zusammen mit seinen Kumpanen.", drops:[]},
+    {name:"Fineous Darkvire", tag:"Großer Hammer", tactic:"Einfacher Kampf.", drops:[{n:"Ironfoe",q:"epic",s:"Einhandstreitkolben"}]},
+    {name:"General Angerforge", tag:"Kriegsherr", tactic:"Ruft Verstärkungen bei niedriger Gesundheit. Schnell töten oder Adds vorher kontrollieren.", drops:[{n:"Angerforge's Battle Axe",q:"rare",s:"Zweihandaxt"}]},
+    {name:"Ambassador Flamelash", tag:"Feuerbeschwörer", tactic:"Beschwört Feuergeister aus Runen. Die Geister abfangen, bevor sie ihn erreichen.", drops:[]},
+    {name:"Magmus", tag:"Tor-Wächter", tactic:"Vor dem Thronsaal. Feuerfallen an den Wänden – nicht in den Flammen stehen.", drops:[]},
+    {name:"Emperor Dagran Thaurissan", tag:"Endboss", tactic:"Mit Prinzessin Moira Bronzebeard. Allianz für „The Royal Rescue“: Moira NICHT töten. Sie heilt den Imperator – kontrollieren oder unterbrechen.", drops:[{n:"Hand of Justice",q:"rare",s:"Schmuckstück"}]}
+  ],
+  route:[
+    "Vom Eingang: Lord Roccor, dann ins Gefängnis (Gerstahn) – mit dem Shadowforge Key werden spätere Türen schneller.",
+    "Ring of Law, dann die Schatzkammer, Golem Lord Argelmach.",
+    "Grim Guzzler (Hurley, Plugger), weiter zu Angerforge und Fineous.",
+    "Flamelash, die sieben Zwerge, Magmus und schließlich Thaurissan."
+  ],
+  quests:[
+    {name:"Attunement to the Core", side:"B", giver:"Lothos Riftwaker", loc:"Schwarzfels, oberhalb des Eingangs", obj:"Bring ein Core Fragment.", steps:["Das Fragment liegt in der Nähe des Portals zum Geschmolzenen Kern in Schwarzfelstiefen."], reward:"Einstimmung auf den Geschmolzenen Kern"},
+    {name:"The Royal Rescue", side:"A", giver:"King Magni Bronzebeard", loc:"Eisenschmiede, Thronsaal", obj:"Töte Emperor Dagran Thaurissan und befreie Moira Bronzebeard.", steps:["Vorquests über Kharan Mighthammer (im Gefängnis von Schwarzfelstiefen).","Moira dabei nicht töten."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Commander Gor'shak", side:"H", giver:"Galamav the Marksman", loc:"Ödland, Kargath", obj:"Finde Commander Gor'shak.", steps:["Gor'shak sitzt im Gefängnis; mit dem Prison Cell Key befreien.","Startet eine längere Hordenreihe in Schwarzfelstiefen."], reward:"Folgequests"},
+    {name:"Dark Iron Legacy", side:"B", giver:"Franclorn Forgewright", loc:"Schwarzfels (als Geist sichtbar)", obj:"Ironfel zurückholen.", steps:["Pyromancer Loregrain töten, er hat Ironfel.","Ironfel an Franclorns Schrein legen – ergibt den Shadowforge Key."], reward:"Shadowforge Key"}
+  ]
+},
+{
+  id:"scholo", name:"Scholomance", de:"Scholomance", zone:"Westliche Pestländer", level:"58–60", min:58, faction:"N",
+  entrance:"Auf der Insel Caer Darrow im Darrowsee (Westliche Pestländer). Für die Tür ist der Skeleton Key nötig (Questreihe ab Zugwindlager bzw. Das Bollwerk).",
+  desc:"Eine Schule der Nekromantie, geleitet von Darkmaster Gandling. Hier droppen u. a. die Helme des Dungeon-Sets.",
+  bosses:[
+    {name:"Kirtonos the Herald", tag:"Beschworen", tactic:"Wird mit Blood of Innocents an der Kohlenpfanne der Veranda beschworen. Wechselt zwischen Menschen- und Fledermausgestalt. Die Waffen an den Wänden aktivieren zwischendurch.", drops:[]},
+    {name:"Jandice Barov", tag:"Illusionistin", tactic:"Erzeugt viele Illusionen. Flächenschaden – die echte Jandice ist die einzige, die Schaden verursacht.", drops:[]},
+    {name:"Rattlegore", tag:"Knochen-Koloss", tactic:"Einfacher, aber schlagkräftiger Gegner; im Kellergewölbe.", drops:[]},
+    {name:"Ras Frostwhisper", tag:"Lich", tactic:"Frostzauber und Furcht. Furchtschutz hilft.", drops:[]},
+    {name:"Darkmaster Gandling", tag:"Endboss", tactic:"Teleportiert Spieler in umliegende Räume voller Untoter. Teleportierte Spieler kämpfen sich heraus, der Rest bleibt am Boss. Wird erst angreifbar, wenn alle sechs Bosse in den Räumen um ihn tot sind.", drops:[{n:"Dungeon-Set-Helm (je nach Klasse)",q:"rare",s:"Kopf"}]}
+  ],
+  route:[
+    "Mit dem Skeleton Key durch das Tor, die Veranda räumen (optional Kirtonos).",
+    "Die Hallen hinab: Jandice Barov, dann Rattlegore im Gewölbe.",
+    "Ras Frostwhisper, dann die sechs Räume um die zentrale Halle räumen (Bosse der Wächterkammern).",
+    "Danach erscheint Darkmaster Gandling im Zentrum."
+  ],
+  quests:[
+    {name:"Barov Family Fortune", side:"B", giver:"Weldon Barov (Allianz, Zugwindlager) / Alexi Barov (Horde, Das Bollwerk)", loc:"Westliche Pestländer", obj:"Sammle die vier Besitzurkunden der Barovs.", steps:["Die Urkunden liegen in verschiedenen Räumen der Scholomance."], reward:"Wahl eines Gegenstands"},
+    {name:"Plagued Hatchlings", side:"B", giver:"Alchemist Arbington (Allianz) / Apothecary Dithers (Horde)", loc:"Westliche Pestländer (Zugwindlager / Das Bollwerk)", obj:"Töte 20 Plagued Hatchlings.", steps:["Im Raum mit den Drachenwelpen; Dawn's Gambit-Questreihe folgt."], reward:"Folgequest"},
+    {name:"Doctor Theolen Krastinov, the Butcher", side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Doctor Theolen Krastinov.", steps:["Krastinov ist in einem der Räume um die zentrale Halle."], reward:"Folgequest"},
+    {name:"Kirtonos the Herald", side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Kirtonos the Herald.", steps:["Mit Blood of Innocents beschwören (aus der Folgereihe)."], reward:"Wahl eines Gegenstands"}
+  ]
+},
+{
+  id:"strat", name:"Stratholme", de:"Stratholme", zone:"Östliche Pestländer", level:"58–60", min:58, faction:"N",
+  entrance:"Im Norden der Östlichen Pestländer. Der Haupteingang führt in die lebendige Seite (Scharlachroter Kreuzzug). Der Diensteingang führt direkt zur untoten Seite (Baron).",
+  desc:"Die verfluchte Stadt, in der Arthas einst die Bewohner tötete. Lebendige Seite: Balnazzar als Grand Crusader. Untote Seite: Baron Rivendare – bekannt für den 45-Minuten-„Baron Run“.",
+  bosses:[
+    {name:"Timmy the Cruel", tag:"Lebendige Seite", tactic:"Erscheint, wenn der Platz mit den Untoten geräumt ist. Teilt Spalten aus.", drops:[]},
+    {name:"Cannon Master Willey", tag:"Lebendige Seite", tactic:"Ruft Schützen herbei – Flächenschaden.", drops:[]},
+    {name:"Archivist Galford", tag:"Lebendige Seite", tactic:"Im Archiv; wirft Feuer. Abseits stehen.", drops:[]},
+    {name:"Balnazzar", tag:"Lebendige Seite, Endboss", tactic:"Erst Grand Crusader Dathrohan, dann verwandelt er sich in den Schreckenslord Balnazzar. Gedankenkontrolle und Schlaf – verteilt stehen.", drops:[]},
+    {name:"Baroness Anastari", tag:"Untote Seite", tactic:"Übernimmt Spieler (Besessenheit). Den Besessenen nicht töten, Boss schnell beschädigen.", drops:[]},
+    {name:"Nerub'enkan", tag:"Untote Seite", tactic:"Spinnen-Adds; Netz auf Spieler.", drops:[]},
+    {name:"Maleki the Pallid", tag:"Untote Seite", tactic:"Frost-Lich, Eisblitze unterbrechen.", drops:[]},
+    {name:"Magistrate Barthilas", tag:"Untote Seite", tactic:"Läuft bei Begegnung weg in Richtung Schlachthof. Hat den Key to the City (für den Diensteingang).", drops:[{n:"Key to the City",q:"quest",s:"Schlüssel"}]},
+    {name:"Ramstein the Gorger", tag:"Schlachthof", tactic:"Nach dem Tod der drei Ziggurat-Bosse öffnet sich der Schlachthof. Ramstein schlägt Spieler weg.", drops:[]},
+    {name:"Baron Rivendare", tag:"Untote Seite, Endboss", tactic:"Belebt Skelette, wirft Todesspirale. Skelette mit Flächenschaden beseitigen. Für den Baron Run in 45 Minuten Ysida befreien.", drops:[{n:"Deathcharger's Reins",q:"epic",s:"Reittier (sehr selten)"},{n:"Runeblade of Baron Rivendare",q:"rare",s:"Zweihandschwert"}]}
+  ],
+  route:[
+    "Lebendig: Feuer-Platz, Timmy, Willey, Archiv (Galford), dann Balnazzar im Inneren.",
+    "Untot: Über den Diensteingang zu den drei Zigguraten (Anastari, Nerub'enkan, Maleki).",
+    "Schlachthof: Ramstein und die Untoten-Wellen.",
+    "Baron Rivendare – bei Erfolg in 45 Minuten wird Ysida Harmon befreit."
+  ],
+  quests:[
+    {name:"Dead Man's Plea", side:"B", giver:"Anthion Harmon", loc:"Östliche Pestländer, vor Stratholme", obj:"Befreie Ysida Harmon innerhalb von 45 Minuten nach dem Betreten.", steps:["Timer läuft ab dem ersten Ziggurat-Boss.","Baron Rivendare rechtzeitig töten."], reward:"Wichtiger Teil der Dungeon-Set-Upgrade-Reihe"},
+    {name:"Houses of the Holy", side:"B", giver:"Leonid Barthalomew the Revered", loc:"Östliche Pestländer, Kapelle des Hoffnungsvollen Lichts", obj:"Sammle 5 Stratholme Holy Water.", steps:["Die Kisten mit Holy Water stehen in den Häusern der lebendigen Seite."], reward:"Wahl zwischen Heiltränken"},
+    {name:"The Restless Souls", side:"B", giver:"Egan", loc:"Östliche Pestländer", obj:"Befreie 15 Spectral Citizens mit Egan's Blaster.", steps:["Spektrale Bürger auf den Straßen von Stratholme beschießen, dann töten."], reward:"Wahl eines Gegenstands"},
+    {name:"Ramstein", side:"H", giver:"Nathanos Blightcaller", loc:"Östliche Pestländer", obj:"Bring den Kopf von Ramstein the Gorger.", steps:["Ramstein im Schlachthof töten."], reward:"Wahl eines Gegenstands"}
+  ]
+}
+];
+
+const MONSTERS = [
+  {name:"Azuregos", type:"Weltboss", zone:"Azshara", level:"??", desc:"Blauer Drache, der in Azshara umherwandert.", tactic:"Teleportiert alle Spieler in Reichweite zu sich (Positionen danach neu einnehmen). Magiereflexion – Zauberer achten auf den Schild. Raid-Begegnung (40 Spieler).", drops:[{n:"Typhoon",q:"epic",s:"Zweihandschwert"},{n:"Snowblind Shoes",q:"epic",s:"Füße, Stoff"},{n:"Mature Blue Dragon Sinew",q:"epic",s:"Material"}]},
+  {name:"Lord Kazzak", type:"Weltboss", zone:"Verwüstete Lande", level:"??", desc:"Ein Verdammnislord am Dunklen Portal.", tactic:"Heilt sich bei jedem getöteten Spieler. Mal des Kazzak sofort entfernen bzw. Mana vorher ablassen. Raid-Begegnung.", drops:[{n:"Empyrean Demolisher",q:"epic",s:"Einhandstreitkolben"},{n:"Blacklight Bracer",q:"epic",s:"Handgelenke"},{n:"Infernal Headcage",q:"epic",s:"Kopf, Platte"}]},
+  {name:"Drachen des Albtraums", type:"Weltboss", zone:"Dämmerwald, Hinterland, Eschental, Feralas", level:"??", desc:"Ysondre, Emeriss, Lethon und Taerar erscheinen an den großen Bäumen.", tactic:"Schlaf-Atem nach vorne, Schwanzschlag nach hinten. Spieler im Schlaf (Albtraum) nicht stehen lassen. Raid-Begegnung.", drops:[{n:"Nightmare Engulfed Object",q:"quest",s:"Startet eine Quest"},{n:"Hammer of Bestial Fury",q:"epic",s:"Einhandstreitkolben"}]},
+  {name:"Jadefire Satyrs", type:"Farmgegner", zone:"Teufelswald, Jadefeuerlauf", level:"48–54", desc:"Satyrn im Norden des Teufelswalds.", tactic:"Einzeln ziehen; Schurken-Satyrn verstecken sich.", drops:[{n:"Felcloth",q:"common",s:"Stoff"},{n:"Runecloth",q:"common",s:"Stoff"}]},
+  {name:"Winterfall Furbolgs", type:"Farmgegner", zone:"Winterquell, Winterfall Village", level:"53–56", desc:"Feindliche Furbolgs – ideal für Ruf bei den Holzschlundfeste-Furbolgs.", tactic:"Kommen oft in Gruppen; Schamanen zuerst.", drops:[{n:"Runecloth",q:"common",s:"Stoff"},{n:"Winterfall Spirit Beads",q:"quest",s:"Ruf-Gegenstand (Timbermaw)"}]},
+  {name:"Deadwood Furbolgs", type:"Farmgegner", zone:"Teufelswald", level:"48–55", desc:"Furbolgs im Teufelswald, ebenfalls für Holzschlundfeste-Ruf.", tactic:"Schamanen und Pfadfinder zuerst.", drops:[{n:"Deadwood Headdress Feather",q:"quest",s:"Ruf-Gegenstand (Timbermaw)"},{n:"Runecloth",q:"common",s:"Stoff"}]},
+  {name:"Defias Pillager / Looter", type:"Questgegner", zone:"Westfall", level:"14–17", desc:"Banditen der Defias-Bruderschaft auf den Feldern von Westfall.", tactic:"Pillager wirken Feuerzauber – unterbrechen.", drops:[{n:"Red Leather Bandana",q:"quest",s:"Questgegenstand"}]}
+];
+
+/* ===================== Hilfsfunktionen ===================== */
+const $ = s => document.querySelector(s);
+const QUAL = {poor:"Schlecht",common:"Gewöhnlich",uncommon:"Selten",rare:"Rar",epic:"Episch",legendary:"Legendär",quest:"Quest"};
+const SIDE = {A:["Allianz","a"],H:["Horde","h"],B:["Beide","n"],N:["Neutral","n"]};
+const SLOT_ICON = s => /schwert/i.test(s)?"⚔":/axt/i.test(s)?"🪓":/dolch/i.test(s)?"🗡":/streitkolben|hammer/i.test(s)?"🔨":/stab|zauberstab/i.test(s)?"🪄":/schild/i.test(s)?"🛡":/finger/i.test(s)?"💍":/hals/i.test(s)?"📿":/rücken/i.test(s)?"🧣":/tasche/i.test(s)?"👜":/schmuck/i.test(s)?"✦":/reittier/i.test(s)?"🐎":/quest|schlüssel|startet/i.test(s)?"!":/stoff$|material/i.test(s)?"🧵":"⛨";
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let state = {faction:"horde", tab:"dungeons", sel:null, inner:"bosses", search:"", showAll:false, lootQ:"all"};
+try{ const s = JSON.parse(localStorage.getItem("azeroth-bib")||"{}"); if(s.faction) state.faction=s.faction; if(s.showAll) state.showAll=true; }catch(e){}
+const save = () => { try{ localStorage.setItem("azeroth-bib", JSON.stringify({faction:state.faction, showAll:state.showAll})); }catch(e){} };
+
+const myside = () => state.faction==="horde" ? "H" : "A";
+const questVisible = q => state.showAll || q.side==="B" || q.side===myside();
+
+/* Alle Gegenstände flach für Suche und Beute-Liste */
+const ALL_ITEMS = [];
+DUNGEONS.forEach(d=>d.bosses.forEach(b=>b.drops.forEach(i=>ALL_ITEMS.push({...i, src:b.name, where:d.name, did:d.id}))));
+MONSTERS.forEach((m,mi)=>m.drops.forEach(i=>ALL_ITEMS.push({...i, src:m.name, where:m.zone, mid:mi})));
+
+const match = (...parts) => !state.search || parts.join(" ").toLowerCase().includes(state.search);
+
+function itemHTML(i, src){
+  return `<div class="item" data-item='${esc(JSON.stringify({n:i.n,q:i.q,s:i.s,src:src||i.src||""}))}'>
+    <div class="slot q-${i.q}">${SLOT_ICON(i.s)}</div>
+    <div><div class="nm q-${i.q}">${esc(i.n)}</div><div class="ty">${esc(i.s)}</div></div></div>`;
+}
+function chipSide(s){ const [t,c]=SIDE[s]; return `<span class="chip ${c}">${t}</span>`; }
+
+/* ===================== Linke Liste ===================== */
+function renderFilters(){
+  const f = $("#filters");
+  if(state.tab==="quests"){
+    f.innerHTML = `<div class="filter-row"><label><input type="checkbox" id="showAll" ${state.showAll?"checked":""}> Quests der anderen Fraktion zeigen</label></div>`;
+    $("#showAll").onchange = e => { state.showAll = e.target.checked; save(); render(); };
+  } else if(state.tab==="loot"){
+    f.innerHTML = `<div class="filter-row"><select id="lootQ">
+      ${["all","epic","rare","uncommon","common","quest"].map(q=>`<option value="${q}" ${state.lootQ===q?"selected":""}>${q==="all"?"Alle Qualitäten":QUAL[q]}</option>`).join("")}
+    </select></div>`;
+    $("#lootQ").onchange = e => { state.lootQ = e.target.value; renderList(); };
+  } else f.innerHTML = "";
+}
+
+function renderList(){
+  const L = $("#list"); let h = "";
+  if(state.tab==="dungeons"){
+    const ds = DUNGEONS.filter(d=>match(d.name,d.de,d.zone,d.bosses.map(b=>b.name+" "+b.drops.map(x=>x.n).join(" ")).join(" "),d.quests.map(q=>q.name).join(" ")));
+    ds.forEach(d=>{
+      const own = d.faction==="N" || d.faction===myside();
+      h += `<button class="entry ${state.sel===d.id?"on":""}" data-d="${d.id}" style="${own?"":"opacity:.62"}">
+        <div class="ico">${d.name.replace(/^The /,"").split(/[\s']/).map(w=>w[0]).join("").slice(0,2)}</div>
+        <div class="t"><b>${esc(d.de)}</b><span>${esc(d.zone)}</span></div><span class="lvl">${d.level}</span></button>`;
+    });
+    if(!ds.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
+  }
+  if(state.tab==="quests"){
+    let any=false;
+    DUNGEONS.forEach(d=>{
+      const qs = d.quests.filter(q=>questVisible(q) && match(q.name,q.giver,q.loc,q.obj,d.name,d.de));
+      if(!qs.length) return; any=true;
+      h += `<div class="list-head">${esc(d.de)} · ${d.level}</div>`;
+      qs.forEach(q=>{ h += `<button class="entry" data-d="${d.id}" data-inner="quests" data-q="${esc(q.name)}">
+        <div class="ico" style="color:#ffd100">!</div><div class="t"><b>${esc(q.name)}</b><span>${esc(q.giver)}</span></div>${chipSide(q.side)}</button>`; });
+    });
+    if(!any) h = `<p class="hidden-note" style="color:#b59d77">Keine Quests gefunden.</p>`;
+  }
+  if(state.tab==="monsters"){
+    const ms = MONSTERS.map((m,i)=>({...m,i})).filter(m=>match(m.name,m.zone,m.type,m.drops.map(x=>x.n).join(" ")));
+    const groups = [...new Set(ms.map(m=>m.type))];
+    groups.forEach(g=>{
+      h += `<div class="list-head">${g}</div>`;
+      ms.filter(m=>m.type===g).forEach(m=>{ h += `<button class="entry ${state.sel==="m"+m.i?"on":""}" data-m="${m.i}">
+        <svg class="ico" style="padding:2px"><use href="#sym-skull"/></svg><div class="t"><b>${esc(m.name)}</b><span>${esc(m.zone)}</span></div><span class="lvl">${m.level}</span></button>`; });
+    });
+    if(!ms.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
+  }
+  if(state.tab==="loot"){
+    const order = {legendary:0,epic:1,rare:2,uncommon:3,common:4,poor:5,quest:6};
+    const its = ALL_ITEMS.filter(i=>(state.lootQ==="all"||i.q===state.lootQ) && match(i.n,i.s,i.src,i.where))
+      .sort((a,b)=>order[a.q]-order[b.q] || a.n.localeCompare(b.n));
+    its.forEach(i=>{ h += `<button class="entry" ${i.did?`data-d="${i.did}"`:`data-m="${i.mid}"`} data-item='${esc(JSON.stringify({n:i.n,q:i.q,s:i.s,src:i.src}))}'>
+      <div class="ico q-${i.q}" style="border-color:currentColor">${SLOT_ICON(i.s)}</div>
+      <div class="t"><b class="q-${i.q}">${esc(i.n)}</b><span>${esc(i.src)} · ${esc(i.where)}</span></div></button>`; });
+    if(!its.length) h = `<p class="hidden-note" style="color:#b59d77">Keine Gegenstände gefunden.</p>`;
+  }
+  L.innerHTML = h;
+}
+
+/* ===================== Detailansicht ===================== */
+function renderWelcome(){
+  $("#detailTitle").textContent = "Bibliothek";
+  const fac = state.faction==="horde";
+  $("#detail").innerHTML = `<div class="welcome">
+    <svg class="emblem"><use href="#sym-${state.faction}"/></svg>
+    <h2>${fac?"Lok'tar, Reisender!":"Für die Allianz, Reisender!"}</h2>
+    <p class="muted">Wähle links einen Dungeon, eine Quest, ein Monster oder einen Gegenstand.<br>
+    Quests werden für die ${fac?"Horde":"Allianz"} gefiltert – oben rechts kannst du die Fraktion wechseln.</p>
+    <div class="stat-row">
+      <div class="stat"><b>${DUNGEONS.length}</b>Dungeons</div>
+      <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.bosses.length,0)}</b>Bosse</div>
+      <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.quests.filter(q=>q.side==="B"||q.side===myside()).length,0)}</b>${fac?"Horde":"Allianz"}-Quests</div>
+      <div class="stat"><b>${ALL_ITEMS.length}</b>Gegenstände</div>
+    </div>
+    <div class="box" style="text-align:left;max-width:640px;margin:0 auto">
+      <h4>Empfohlene Reihenfolge (${fac?"Horde":"Allianz"})</h4>
+      ${DUNGEONS.filter(d=>d.faction==="N"||d.faction===myside()).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.level})</span>`).join(" → ")}
+    </div></div>`;
+}
+
+function renderDungeon(d){
+  $("#detailTitle").textContent = d.de;
+  const quests = d.quests.filter(questVisible);
+  const hiddenQ = d.quests.length - quests.length;
+  const tabs = [["bosses","Bosse & Beute"],["quests",`Quests (${quests.length})`],["route","Vorgehen"]];
+  let body = "";
+  if(state.inner==="bosses"){
+    body = d.bosses.map((b,bi)=>`<details class="boss" ${bi<1||state.openBoss===b.name?"open":""} data-boss="${esc(b.name)}">
+      <summary><svg class="skull"><use href="#sym-${b.rare?"skull-rare":"skull"}"/></svg>
+        <h3>${esc(b.name)}</h3><span class="tag">${esc(b.tag||"")}</span><span class="arrow">▶</span></summary>
+      <div class="body"><p class="tactic"><b>Taktik:</b> ${esc(b.tactic)}</p>
+        ${b.drops.length?`<div class="loot">${b.drops.map(i=>itemHTML(i,b.name)).join("")}</div>`:`<p class="hidden-note">Keine besonderen Drops eingetragen.</p>`}
+      </div></details>`).join("");
+  }
+  if(state.inner==="quests"){
+    body = quests.map(q=>`<div class="quest" data-qname="${esc(q.name)}">
+      <h3>${esc(q.name)} ${chipSide(q.side)}</h3>
+      <dl class="qgrid">
+        <dt>Questgeber</dt><dd>${esc(q.giver)}</dd>
+        <dt>Fundort</dt><dd>${esc(q.loc)}</dd>
+        <dt>Ziel</dt><dd>${esc(q.obj)}</dd>
+        <dt>Vorgehen</dt><dd><ol class="steps">${q.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></dd>
+        <dt>Belohnung</dt><dd>${esc(q.reward)}</dd>
+      </dl></div>`).join("") || `<p class="muted">Für deine Fraktion gibt es hier keine Quests.</p>`;
+    if(hiddenQ && !state.showAll) body += `<p class="hidden-note">${hiddenQ} Quest(s) der anderen Fraktion ausgeblendet. <button class="link" id="showOther">Anzeigen</button></p>`;
+  }
+  if(state.inner==="route"){
+    body = `<div class="box"><h4>Weg zum Eingang</h4>${esc(d.entrance)}</div>
+      <h3 class="sec-title">Ablauf im Dungeon</h3>
+      <ol class="steps" style="font-size:17px">${d.route.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`;
+  }
+  const facChip = d.faction==="N" ? `<span class="chip n">Beide Fraktionen</span>` : `<span class="chip ${SIDE[d.faction][1]}">Vor allem ${SIDE[d.faction][0]}</span>`;
+  $("#detail").innerHTML = `
+    <div class="d-head"><div style="flex:1;min-width:220px">
+      <h2>${esc(d.de)}</h2><div class="sub">${esc(d.name)} · ${esc(d.zone)}</div>
+      <div class="chips"><span class="chip">Stufe ${d.level}</span>${facChip}<span class="chip">${d.bosses.length} Bosse</span></div>
+    </div></div>
+    <p>${esc(d.desc)}</p>
+    <div class="box"><h4>Fundort / Eingang</h4>${esc(d.entrance)}</div>
+    <div class="inner-tabs">${tabs.map(([k,t])=>`<button class="tab ${state.inner===k?"on":""}" data-inner-tab="${k}">${t}</button>`).join("")}</div>
+    ${body}`;
+  const so = $("#showOther"); if(so) so.onclick = () => { state.showAll = true; save(); render(); };
+}
+
+function renderMonster(m){
+  $("#detailTitle").textContent = m.name;
+  $("#detail").innerHTML = `<div class="d-head"><svg style="width:56px;height:56px"><use href="#sym-skull"/></svg>
+    <div style="flex:1"><h2>${esc(m.name)}</h2><div class="sub">${esc(m.type)} · ${esc(m.zone)}</div>
+    <div class="chips"><span class="chip">Stufe ${m.level}</span></div></div></div>
+    <p>${esc(m.desc)}</p>
+    <div class="box"><h4>Fundort</h4>${esc(m.zone)}</div>
+    <h3 class="sec-title">Vorgehen</h3><p class="tactic">${esc(m.tactic)}</p>
+    <h3 class="sec-title">Beute</h3><div class="loot">${m.drops.map(i=>itemHTML(i,m.name)).join("")}</div>`;
+}
+
+function renderDetail(){
+  if(!state.sel) return renderWelcome();
+  if(state.sel.startsWith("m")) return renderMonster(MONSTERS[+state.sel.slice(1)]);
+  const d = DUNGEONS.find(x=>x.id===state.sel); if(d) renderDungeon(d); else renderWelcome();
+}
+
+function applyFaction(){
+  document.documentElement.dataset.faction = state.faction;
+  $("#brandEmblem use").setAttribute("href", "#sym-"+state.faction);
+  document.querySelectorAll(".faction-switch button").forEach(b=>b.classList.toggle("on", b.dataset.f===state.faction));
+}
+function render(){
+  applyFaction();
+  document.querySelectorAll("#mainTabs .tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===state.tab));
+  renderFilters(); renderList(); renderDetail();
+}
+
+/* ===================== Ereignisse ===================== */
+document.querySelectorAll(".faction-switch button").forEach(b=>b.onclick=()=>{ state.faction=b.dataset.f; save(); render(); });
+$("#mainTabs").onclick = e => { const t=e.target.closest(".tab"); if(!t) return; state.tab=t.dataset.tab; render(); };
+$("#search").oninput = e => { state.search = e.target.value.trim().toLowerCase(); renderList(); };
+$("#closeDetail").onclick = () => { state.sel=null; render(); };
+
+document.addEventListener("click", e=>{
+  const it = e.target.closest("[data-inner-tab]");
+  if(it){ state.inner = it.dataset.innerTab; renderDetail(); return; }
+  const en = e.target.closest("[data-d],[data-m]");
+  if(!en || en.closest(".item")) return;
+  if(en.dataset.m!==undefined){ state.sel = "m"+en.dataset.m; }
+  else {
+    state.sel = en.dataset.d;
+    state.inner = en.dataset.inner || "bosses";
+    state.openBoss = null;
+    if(en.dataset.item){ state.inner="bosses"; state.openBoss = JSON.parse(en.dataset.item).src; }
+  }
+  renderList(); renderDetail();
+  const target = en.dataset.q ? document.querySelector(`[data-qname="${CSS.escape(en.dataset.q)}"]`)
+               : state.openBoss ? document.querySelector(`[data-boss="${CSS.escape(state.openBoss)}"]`) : null;
+  if(window.innerWidth<=860) (target||$(".detail")).scrollIntoView({behavior:"smooth",block:"start"});
+  else if(target) target.scrollIntoView({behavior:"smooth",block:"center"});
+});
+
+/* Tooltip */
+const tip = $("#tip");
+document.addEventListener("mousemove", e=>{
+  const el = e.target.closest("[data-item]");
+  if(!el){ tip.style.display="none"; return; }
+  const i = JSON.parse(el.dataset.item);
+  tip.innerHTML = `<div class="tn q-${i.q}">${esc(i.n)}</div>
+    <div class="tw">${esc(i.s)}</div><div class="tg">Qualität: ${QUAL[i.q]}</div>
+    ${i.src?`<div class="ty2">Quelle: ${esc(i.src)}</div>`:""}`;
+  tip.style.display="block";
+  const x = Math.min(e.clientX+16, window.innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY+16, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x+"px"; tip.style.top = y+"px";
+});
+
+render();
+</script>
+</body>
+</html>
