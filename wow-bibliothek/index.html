@@ -107,7 +107,7 @@ h1,h2,h3,h4,.cinzel{font-family:"Cinzel", "Times New Roman", serif;letter-spacin
 /* Reiter (Tabs) wie im Spiel unten am Fenster */
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
 .tab{
-  flex:1;min-width:0;padding:7px 6px 6px;cursor:pointer;
+  flex:1 1 auto;min-width:0;padding:7px 5px 6px;cursor:pointer;
   font-family:"Cinzel";font-weight:800;font-size:11px;color:#b9a27a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   background:linear-gradient(#2b211a,#120d0a);border:2px solid #5b4422;border-radius:6px 6px 2px 2px;
 }
@@ -212,6 +212,12 @@ ol.steps li{margin:3px 0}
 .filter-row select,.filter-row label{font:inherit;font-size:14px;color:var(--gold-lt);background:#140f0b;border:1px solid var(--gold-dk);border-radius:4px;padding:4px 6px}
 .filter-row label{display:flex;align-items:center;gap:5px;cursor:pointer}
 
+.mapwrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.mapwrap > div:first-child{flex:1;min-width:200px}
+.minimap{flex:none;width:150px;text-align:center;font-size:13px;color:var(--ink-soft)}
+.minimap svg{display:block;width:150px;height:100px;border:2px solid #6b4c1d;border-radius:4px;box-shadow:inset 0 0 12px rgba(90,55,15,.5);background:#e4cc96}
+.coord{display:inline-block;margin-left:6px;padding:0 7px;border-radius:10px;background:#3f1503;color:var(--gold);font-size:13px;font-family:"Cinzel";white-space:nowrap}
+.quest .mapwrap .minimap{margin-top:4px}
 @media (max-width:860px){
   .layout{grid-template-columns:1fr;padding:10px 16px 30px}
   .list{max-height:42vh}
@@ -300,7 +306,7 @@ ol.steps li{margin:3px 0}
   </section>
 </main>
 
-<p class="footer">Inoffizielles Fan-Nachschlagewerk, nicht mit Blizzard Entertainment verbunden. Quest-, NPC- und Gegenstandsnamen stehen im englischen Original, damit sie sich leicht in Datenbanken nachschlagen lassen. Alle Daten stehen im Skript im Abschnitt <b>DATEN</b> und lassen sich dort ergänzen.</p>
+<p class="footer">Inoffizielles Fan-Nachschlagewerk, nicht mit Blizzard Entertainment verbunden. Quest-, NPC- und Gegenstandsnamen stehen im englischen Original, damit sie sich leicht in Datenbanken nachschlagen lassen. Koordinaten sind ungefähre Kartenwerte (0–100). Alle Daten stehen im Skript im Abschnitt <b>DATEN</b> und lassen sich dort ergänzen.</p>
 
 <div id="tip"></div>
 
@@ -312,10 +318,13 @@ ol.steps li{margin:3px 0}
                 q = poor | common | uncommon | rare | epic | legendary | quest
    Quest-Seite: side = "A" (Allianz) | "H" (Horde) | "B" (beide)
    Dungeon-Fraktion (empfohlen): "A" | "H" | "N" (neutral)
+   Koordinaten:  xy: [x, y]  (Kartenkoordinaten 0–100, ungefähr)
+                 bei getrennten Questgebern: xy: {A:[x,y], H:[x,y]}
+   Schlachtzug:  raid: true, size: 20 | 40
    ===================================================================== */
 const DUNGEONS = [
 {
-  id:"rfc", name:"Ragefire Chasm", de:"Der Flammenschlund", zone:"Orgrimmar", level:"13–18", min:13, faction:"H",
+  id:"rfc", name:"Ragefire Chasm", de:"Der Flammenschlund", zone:"Orgrimmar", level:"13–18", min:13, faction:"H", xy:[52,49],
   entrance:"Mitten in Orgrimmar, in der Kluft der Schatten (Cleft of Shadow). Der Eingang liegt im Westteil der Kluft hinter dem Gebäude der Hexenmeister-Lehrer.",
   desc:"Ein vulkanisches Höhlensystem unter Orgrimmar, in dem Troggs, Feuerelementare und der Kult der Verdammten (Searing Blade) hausen. Kurz und ideal als erster Dungeon für die Horde.",
   bosses:[
@@ -331,14 +340,14 @@ const DUNGEONS = [
     "Die Rampe nach oben folgen: Jergosh steht in einem Raum mit Kultisten, Bazzalan dahinter am Ende."
   ],
   quests:[
-    {name:"Testing an Enemy's Strength", side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Töte 8 Ragefire Troggs und 8 Ragefire Shamans.", steps:["Die Troggs findest du gleich im ersten Teil des Dungeons."], reward:"Erfahrung"},
-    {name:"Searching for the Lost Satchel", side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Finde Maur Grimtotems Leiche und bring seine Tasche zurück.", steps:["Die Leiche liegt in einer Nische der großen Lavahöhle.","Danach Folgequest „Returning the Lost Satchel“ in Donnerfels abgeben."], reward:"Wahl eines grünen Gegenstands"},
-    {name:"Hidden Enemies", side:"H", giver:"Thrall", loc:"Orgrimmar, Tal der Weisheit", obj:"Töte Bazzalan und Jergosh the Invoker.", steps:["Teil einer Questreihe über den Kult der Verdammten – erst die Vorquests bei Thrall erledigen.","Beide Bosse stehen im hinteren Teil des Dungeons."], reward:"Erfahrung, Gegenstand nach Wahl"},
-    {name:"Slaying the Beast", side:"H", giver:"Neeru Fireblade", loc:"Orgrimmar, Kluft der Schatten", obj:"Bring das Herz von Taragaman the Hungerer.", steps:["Taragaman töten und das Herz looten.","Neeru steht direkt neben dem Dungeon-Eingang."], reward:"Erfahrung"}
+    {name:"Testing an Enemy's Strength", xy:[70,30], side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Töte 8 Ragefire Troggs und 8 Ragefire Shamans.", steps:["Die Troggs findest du gleich im ersten Teil des Dungeons."], reward:"Erfahrung"},
+    {name:"Searching for the Lost Satchel", xy:[70,30], side:"H", giver:"Rahauro", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Finde Maur Grimtotems Leiche und bring seine Tasche zurück.", steps:["Die Leiche liegt in einer Nische der großen Lavahöhle.","Danach Folgequest „Returning the Lost Satchel“ in Donnerfels abgeben."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Hidden Enemies", xy:[31,37], side:"H", giver:"Thrall", loc:"Orgrimmar, Tal der Weisheit", obj:"Töte Bazzalan und Jergosh the Invoker.", steps:["Teil einer Questreihe über den Kult der Verdammten – erst die Vorquests bei Thrall erledigen.","Beide Bosse stehen im hinteren Teil des Dungeons."], reward:"Erfahrung, Gegenstand nach Wahl"},
+    {name:"Slaying the Beast", xy:[49,50], side:"H", giver:"Neeru Fireblade", loc:"Orgrimmar, Kluft der Schatten", obj:"Bring das Herz von Taragaman the Hungerer.", steps:["Taragaman töten und das Herz looten.","Neeru steht direkt neben dem Dungeon-Eingang."], reward:"Erfahrung"}
   ]
 },
 {
-  id:"dm", name:"The Deadmines", de:"Die Todesminen", zone:"Westfall", level:"17–26", min:17, faction:"A",
+  id:"dm", name:"The Deadmines", de:"Die Todesminen", zone:"Westfall", level:"17–26", min:17, faction:"A", xy:[42,71],
   entrance:"Im Süden von Westfall im Dorf Mondbruch (Moonbrook). In das Gebäude mit der Schmiede gehen, dort führt eine Treppe hinab in die Minen. Versammlungsstein in Westfall nahe Mondbruch.",
   desc:"Hauptquartier der Defias-Bruderschaft unter Edwin VanCleef. Die Banditen bauen hier unter der Erde ein Kriegsschiff. Klassischer Allianz-Dungeon mit guter Beute.",
   bosses:[
@@ -359,16 +368,16 @@ const DUNGEONS = [
     "Die Höhle mit dem Schiff: Mr. Smite unten, dann aufs Schiff – Greenskin, Cookie (unten) und ganz oben VanCleef."
   ],
   quests:[
-    {name:"Red Silk Bandanas", side:"A", giver:"Scout Riell", loc:"Westfall, Späherkuppe (oben im Turm)", obj:"Sammle 10 Red Silk Bandanas.", steps:["Droppen von den Defias-Gegnern im Dungeon."], reward:"Wahl zwischen Schulterstücken"},
-    {name:"Collecting Memories", side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Sammle 4 Miner's Union Cards.", steps:["Droppen von den untoten Minenarbeitern in den ersten Tunneln."], reward:"Tunneler's Boots"},
-    {name:"Oh Brother. . .", side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Bring das Explorers' League Badge von Foreman Thistlenettle.", steps:["Foreman Thistlenettle läuft als Untoter im Minenbereich herum."], reward:"Miner's Revenge"},
-    {name:"Underground Assault", side:"A", giver:"Shoni the Shilent", loc:"Sturmwind, Zwergendistrikt", obj:"Bring Gnoam Sprecklesprocket.", steps:["Droppt von Sneed's Shredder."], reward:"Wahl eines blauen/grünen Gegenstands"},
-    {name:"The Defias Brotherhood", side:"A", giver:"Gryan Stoutmantle", loc:"Westfall, Späherkuppe", obj:"Töte Edwin VanCleef und bring seinen Kopf.", steps:["Lange Questreihe, beginnt bei Gryan Stoutmantle und führt über Redridge (Wilder Mann) zurück.","Letzter Teil: VanCleef töten, Kopf zu Gryan."], reward:"Chausses of Westfall, Tunic of Westfall oder Staff of Westfall"},
+    {name:"Red Silk Bandanas", xy:[56,47], side:"A", giver:"Scout Riell", loc:"Westfall, Späherkuppe (oben im Turm)", obj:"Sammle 10 Red Silk Bandanas.", steps:["Droppen von den Defias-Gegnern im Dungeon."], reward:"Wahl zwischen Schulterstücken"},
+    {name:"Collecting Memories", xy:[65,21], side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Sammle 4 Miner's Union Cards.", steps:["Droppen von den untoten Minenarbeitern in den ersten Tunneln."], reward:"Tunneler's Boots"},
+    {name:"Oh Brother. . .", xy:[65,21], side:"A", giver:"Wilder Thistlenettle", loc:"Sturmwind, Zwergendistrikt", obj:"Bring das Explorers' League Badge von Foreman Thistlenettle.", steps:["Foreman Thistlenettle läuft als Untoter im Minenbereich herum."], reward:"Miner's Revenge"},
+    {name:"Underground Assault", xy:[55,12], side:"A", giver:"Shoni the Shilent", loc:"Sturmwind, Zwergendistrikt", obj:"Bring Gnoam Sprecklesprocket.", steps:["Droppt von Sneed's Shredder."], reward:"Wahl eines blauen/grünen Gegenstands"},
+    {name:"The Defias Brotherhood", xy:[56,47], side:"A", giver:"Gryan Stoutmantle", loc:"Westfall, Späherkuppe", obj:"Töte Edwin VanCleef und bring seinen Kopf.", steps:["Lange Questreihe, beginnt bei Gryan Stoutmantle und führt über Redridge (Wilder Mann) zurück.","Letzter Teil: VanCleef töten, Kopf zu Gryan."], reward:"Chausses of Westfall, Tunic of Westfall oder Staff of Westfall"},
     {name:"The Unsent Letter", side:"A", giver:"Brief von VanCleef", loc:"Droppt von Edwin VanCleef", obj:"Bring den Brief zu Baros Alexston in Sturmwind.", steps:["Baros Alexston steht in Sturmwind im Stadthaus (Cathedral Square).","Startet die Reihe um Bazil Thredd (weiter im Verlies)."], reward:"Erfahrung, Folgequest"}
   ]
 },
 {
-  id:"wc", name:"Wailing Caverns", de:"Die Höhlen des Wehklagens", zone:"Brachland", level:"17–24", min:17, faction:"H",
+  id:"wc", name:"Wailing Caverns", de:"Die Höhlen des Wehklagens", zone:"Brachland", level:"17–24", min:17, faction:"H", xy:[46,36],
   entrance:"Im Brachland südwestlich vom Wegekreuz, in einer Oase am Fuß eines Berges. Der Eingang ist ein großes Schlangenmaul im Fels; Questgeber stehen in der Höhle davor und oben auf dem Hügel.",
   desc:"Druiden des Giftzahns (Fang) wurden vom Smaragdgrünen Albtraum verdorben. Tief in den Höhlen schläft Naralex – ein Jünger am Eingang will ihn wecken.",
   bosses:[
@@ -389,15 +398,15 @@ const DUNGEONS = [
     "Beim Ritual erscheinen Wellen von Gegnern, am Ende Mutanus. Danach erwacht Naralex."
   ],
   quests:[
-    {name:"Leaders of the Fang", side:"H", giver:"Nara Wildmane", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Bring die Edelsteine von Cobrahn, Anacondra, Pythas und Serpentis.", steps:["Alle vier Druiden-Bosse töten.","Vorquest über Hamuul Runetotem / den Wailing-Caverns-Einstieg in Donnerfels."], reward:"Crescent Staff oder Wingblade"},
-    {name:"Deviate Hides", side:"B", giver:"Nalpak", loc:"Brachland, Höhle über dem Eingang", obj:"Sammle 20 Deviate Hides.", steps:["Droppen von den abgewichenen (Deviate) Tieren im Dungeon."], reward:"Wahl zwischen grünen Gegenständen"},
-    {name:"Smart Drinks", side:"B", giver:"Mebok Mizzyrix", loc:"Ratschet", obj:"Sammle 6 Portions of Wailing Essence.", steps:["Droppen von den Ectoplasma-Wesen in den Höhlen."], reward:"Erfahrung, Tränke"},
-    {name:"Trouble at the Docks", side:"B", giver:"Crane Operator Bigglefuzz", loc:"Ratschet, Hafen", obj:"Bring die gestohlene Flasche von Mad Magglish zurück.", steps:["Mad Magglish ist ein getarnter Goblin in den Höhlen; er versteckt sich am Wasserfall."], reward:"Erfahrung"},
+    {name:"Leaders of the Fang", xy:[75,31], side:"H", giver:"Nara Wildmane", loc:"Donnerfels, Anhöhe der Ältesten", obj:"Bring die Edelsteine von Cobrahn, Anacondra, Pythas und Serpentis.", steps:["Alle vier Druiden-Bosse töten.","Vorquest über Hamuul Runetotem / den Wailing-Caverns-Einstieg in Donnerfels."], reward:"Crescent Staff oder Wingblade"},
+    {name:"Deviate Hides", xy:[47,36], side:"B", giver:"Nalpak", loc:"Brachland, Höhle über dem Eingang", obj:"Sammle 20 Deviate Hides.", steps:["Droppen von den abgewichenen (Deviate) Tieren im Dungeon."], reward:"Wahl zwischen grünen Gegenständen"},
+    {name:"Smart Drinks", xy:[62,37], side:"B", giver:"Mebok Mizzyrix", loc:"Ratschet", obj:"Sammle 6 Portions of Wailing Essence.", steps:["Droppen von den Ectoplasma-Wesen in den Höhlen."], reward:"Erfahrung, Tränke"},
+    {name:"Trouble at the Docks", xy:[63,37], side:"B", giver:"Crane Operator Bigglefuzz", loc:"Ratschet, Hafen", obj:"Bring die gestohlene Flasche von Mad Magglish zurück.", steps:["Mad Magglish ist ein getarnter Goblin in den Höhlen; er versteckt sich am Wasserfall."], reward:"Erfahrung"},
     {name:"The Glowing Shard", side:"B", giver:"Glowing Shard (Drop)", loc:"Droppt von Mutanus the Devourer", obj:"Lass den Splitter in Ratschet untersuchen.", steps:["Führt zu Falla Sagewind oben auf dem Hügel über den Höhlen."], reward:"Wahl eines Gegenstands"}
   ]
 },
 {
-  id:"sfk", name:"Shadowfang Keep", de:"Burg Schattenfang", zone:"Silberwald", level:"22–30", min:22, faction:"H",
+  id:"sfk", name:"Shadowfang Keep", de:"Burg Schattenfang", zone:"Silberwald", level:"22–30", min:22, faction:"H", xy:[45,68],
   entrance:"Im Silberwald auf einem Hügel südlich vom Grabmal (The Sepulcher), an der Straße Richtung Pyrewood. Für die Allianz ein langer Weg über das Sumpfland oder Arathi.",
   desc:"Einst Sitz von Baron Silverlaine, nun Festung des wahnsinnigen Erzmagiers Arugal, der hier seine Worgen hält.",
   bosses:[
@@ -417,14 +426,14 @@ const DUNGEONS = [
     "Fenrus, die Bibliothek, Wolf Master Nandos – dann hinauf zu Arugal."
   ],
   quests:[
-    {name:"Deathstalkers in Shadowfang", side:"H", giver:"High Executor Hadrec", loc:"Silberwald, Grabmal", obj:"Finde die vermissten Todespirscher.", steps:["Deathstalker Adamant ist im Kerker gefangen, Deathstalker Vincent liegt im Hof."], reward:"Erfahrung"},
-    {name:"The Book of Ur", side:"H", giver:"Keeper Bel'dugur", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch von Ur.", steps:["Liegt in der Bibliothek auf einem Tisch vor Nandos."], reward:"Grizzled Boots oder Steel-clasped Bracers"},
-    {name:"Arugal Must Die", side:"H", giver:"Dalar Dawnweaver", loc:"Silberwald, Grabmal", obj:"Bring den Kopf von Arugal.", steps:["Arugal am Ende töten."], reward:"Seal of Sylvanas"},
-    {name:"The Test of Righteousness", side:"A", giver:"Jordan Stilwell", loc:"Eisenschmiede, außerhalb am Eingang (Paladin-Quest)", obj:"Sammle Materialien für Jordan's Hammer.", steps:["Teil der Paladin-Questreihe für Verigan's Fist.","Ein Teil der Materialien liegt in Burg Schattenfang (u. a. Jordan's Weapon Notes auf dem Weg durch die Burg)."], reward:"Verigan's Fist (nach der Reihe)"}
+    {name:"Deathstalkers in Shadowfang", xy:[43,40], side:"H", giver:"High Executor Hadrec", loc:"Silberwald, Grabmal", obj:"Finde die vermissten Todespirscher.", steps:["Deathstalker Adamant ist im Kerker gefangen, Deathstalker Vincent liegt im Hof."], reward:"Erfahrung"},
+    {name:"The Book of Ur", xy:[53,54], side:"H", giver:"Keeper Bel'dugur", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch von Ur.", steps:["Liegt in der Bibliothek auf einem Tisch vor Nandos."], reward:"Grizzled Boots oder Steel-clasped Bracers"},
+    {name:"Arugal Must Die", xy:[44,39], side:"H", giver:"Dalar Dawnweaver", loc:"Silberwald, Grabmal", obj:"Bring den Kopf von Arugal.", steps:["Arugal am Ende töten."], reward:"Seal of Sylvanas"},
+    {name:"The Test of Righteousness", xy:[52,36], side:"A", giver:"Jordan Stilwell", loc:"Eisenschmiede, außerhalb am Eingang (Paladin-Quest)", obj:"Sammle Materialien für Jordan's Hammer.", steps:["Teil der Paladin-Questreihe für Verigan's Fist.","Ein Teil der Materialien liegt in Burg Schattenfang (u. a. Jordan's Weapon Notes auf dem Weg durch die Burg)."], reward:"Verigan's Fist (nach der Reihe)"}
   ]
 },
 {
-  id:"bfd", name:"Blackfathom Deeps", de:"Die Tiefschwarze Grotte", zone:"Eschental", level:"24–32", min:24, faction:"N",
+  id:"bfd", name:"Blackfathom Deeps", de:"Die Tiefschwarze Grotte", zone:"Eschental", level:"24–32", min:24, faction:"N", xy:[14,14],
   entrance:"An der Westküste des Eschentals am Zoram-Strand. Der Eingang liegt in einer überfluteten Ruine – ein Stück schwimmen bzw. tauchen.",
   desc:"Ein versunkener Tempel der Nachtelfen, besetzt vom Twilight's Hammer und Naga. In der Tiefe wartet Aku'mai.",
   bosses:[
@@ -443,13 +452,13 @@ const DUNGEONS = [
     "Feuerschalen anzünden, Gegnerwellen abwehren – dann öffnet sich der Weg zu Aku'mai."
   ],
   quests:[
-    {name:"Knowledge in the Deeps", side:"A", giver:"Gerrig Bonegrip", loc:"Eisenschmiede, Vergessene Höhle", obj:"Bring das Lorgalis Manuscript.", steps:["Liegt in einem Unterwasser-Abschnitt im Teich hinter dem Eingang."], reward:"Gerrig's Ring (Wahl)"},
-    {name:"Researching the Corruption", side:"A", giver:"Gershala Nightwhisper", loc:"Dunkelküste, Auberdine", obj:"Sammle 8 Corrupt Brain stems.", steps:["Droppen von den Satyrn und Naga im Dungeon."], reward:"Wahl eines grünen Gegenstands"},
-    {name:"In Search of Thaelrid", side:"A", giver:"Dawnwatcher Shaedlass", loc:"Darnassus", obj:"Finde Argent Guard Thaelrid in der Tiefschwarzen Grotte.", steps:["Thaelrid steht in der Nähe von Gelihast; er gibt „Blackfathom Villainy“."], reward:"Folgequest"},
-    {name:"Blackfathom Villainy", side:"B", giver:"Argent Guard Thaelrid (Allianz) / Bashana Runetotem (Horde, Donnerfels)", loc:"Im Dungeon bzw. Donnerfels", obj:"Bring den Kopf von Twilight Lord Kelris.", steps:["Kelris töten.","Allianz gibt bei Dawnwatcher Selgorm in Darnassus ab, Horde bei Bashana Runetotem."], reward:"Wahl eines blauen Gegenstands"},
-    {name:"Amongst the Ruins", side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Bring den Fathom Core.", steps:["Baron Aquanis töten, sein Kern startet bzw. erfüllt die Quest."], reward:"Erfahrung"},
-    {name:"Allegiance to the Old Gods", side:"H", giver:"Damp Note (Drop)", loc:"Droppt von Ghamoo-ra", obj:"Töte Lorgus Jett.", steps:["Notiz bei Je'neu Sancrea in Zoram'gar abgeben, dann Lorgus Jett im Dungeon töten."], reward:"Erfahrung, Gegenstand"},
-    {name:"The Essence of Aku'Mai", side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Sammle 20 Sapphires of Aku'Mai.", steps:["Kristalle an den Höhlenwänden im ersten Tunnel vor dem Instanzportal."], reward:"Erfahrung"}
+    {name:"Knowledge in the Deeps", xy:[50,5], side:"A", giver:"Gerrig Bonegrip", loc:"Eisenschmiede, Vergessene Höhle", obj:"Bring das Lorgalis Manuscript.", steps:["Liegt in einem Unterwasser-Abschnitt im Teich hinter dem Eingang."], reward:"Gerrig's Ring (Wahl)"},
+    {name:"Researching the Corruption", xy:[38,43], side:"A", giver:"Gershala Nightwhisper", loc:"Dunkelküste, Auberdine", obj:"Sammle 8 Corrupt Brain stems.", steps:["Droppen von den Satyrn und Naga im Dungeon."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"In Search of Thaelrid", xy:[55,24], side:"A", giver:"Dawnwatcher Shaedlass", loc:"Darnassus", obj:"Finde Argent Guard Thaelrid in der Tiefschwarzen Grotte.", steps:["Thaelrid steht in der Nähe von Gelihast; er gibt „Blackfathom Villainy“."], reward:"Folgequest"},
+    {name:"Blackfathom Villainy", xy:{H:[70,51]}, side:"B", giver:"Argent Guard Thaelrid (Allianz) / Bashana Runetotem (Horde, Donnerfels)", loc:"Im Dungeon bzw. Donnerfels", obj:"Bring den Kopf von Twilight Lord Kelris.", steps:["Kelris töten.","Allianz gibt bei Dawnwatcher Selgorm in Darnassus ab, Horde bei Bashana Runetotem."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Amongst the Ruins", xy:[11,34], side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Bring den Fathom Core.", steps:["Baron Aquanis töten, sein Kern startet bzw. erfüllt die Quest."], reward:"Erfahrung"},
+    {name:"Allegiance to the Old Gods", xy:[11,34], side:"H", giver:"Damp Note (Drop)", loc:"Droppt von Ghamoo-ra", obj:"Töte Lorgus Jett.", steps:["Notiz bei Je'neu Sancrea in Zoram'gar abgeben, dann Lorgus Jett im Dungeon töten."], reward:"Erfahrung, Gegenstand"},
+    {name:"The Essence of Aku'Mai", xy:[11,34], side:"H", giver:"Je'neu Sancrea", loc:"Eschental, Zoram'gar-Außenposten", obj:"Sammle 20 Sapphires of Aku'Mai.", steps:["Kristalle an den Höhlenwänden im ersten Tunnel vor dem Instanzportal."], reward:"Erfahrung"}
   ]
 },
 {
@@ -470,16 +479,16 @@ const DUNGEONS = [
     "Am Ende des Hauptgangs Bazil Thredd."
   ],
   quests:[
-    {name:"Quell The Uprising", side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Eingang des Verlieses", obj:"Töte 10 Defias Prisoners, 8 Defias Convicts und 8 Defias Insurgents.", steps:["Alle drei Arten im ganzen Dungeon."], reward:"Erfahrung"},
+    {name:"Quell The Uprising", xy:[41,58], side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Eingang des Verlieses", obj:"Töte 10 Defias Prisoners, 8 Defias Convicts und 8 Defias Insurgents.", steps:["Alle drei Arten im ganzen Dungeon."], reward:"Erfahrung"},
     {name:"The Color of Blood", side:"A", giver:"Nikova Raskol", loc:"Sturmwind, Altstadt", obj:"Sammle 10 Red Wool Bandanas.", steps:["Droppen von den Gefangenen im Dungeon."], reward:"Erfahrung"},
-    {name:"The Fury Runs Deep", side:"A", giver:"Motley Garmason", loc:"Sumpfland, Dun Modr", obj:"Bring den Kopf von Kam Deepfury.", steps:["Teil der Dunkeleisen-Questreihe im Sumpfland."], reward:"Wahl eines Schildes / Gegenstands"},
-    {name:"What Comes Around...", side:"A", giver:"Guard Berton", loc:"Rotkammgebirge, Seenhain", obj:"Bring den Kopf von Targorr the Dread.", steps:["Targorr im linken Flügel töten."], reward:"Wahl eines grünen Gegenstands"},
-    {name:"Crime and Punishment", side:"A", giver:"Councilman Millstipe", loc:"Dämmerwald, Dunkelhain", obj:"Bring die Hand von Dextren Ward.", steps:["Dextren Ward im rechten Flügel töten."], reward:"Wahl zwischen Rüstungsteilen"},
-    {name:"The Stockade Riots", side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Verlies", obj:"Bring den Kopf von Bazil Thredd.", steps:["Teil der Questreihe aus „The Unsent Letter“ (Todesminen)."], reward:"Folgequest"}
+    {name:"The Fury Runs Deep", xy:[49,18], side:"A", giver:"Motley Garmason", loc:"Sumpfland, Dun Modr", obj:"Bring den Kopf von Kam Deepfury.", steps:["Teil der Dunkeleisen-Questreihe im Sumpfland."], reward:"Wahl eines Schildes / Gegenstands"},
+    {name:"What Comes Around...", xy:[26,46], side:"A", giver:"Guard Berton", loc:"Rotkammgebirge, Seenhain", obj:"Bring den Kopf von Targorr the Dread.", steps:["Targorr im linken Flügel töten."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Crime and Punishment", xy:[72,47], side:"A", giver:"Councilman Millstipe", loc:"Dämmerwald, Dunkelhain", obj:"Bring die Hand von Dextren Ward.", steps:["Dextren Ward im rechten Flügel töten."], reward:"Wahl zwischen Rüstungsteilen"},
+    {name:"The Stockade Riots", xy:[41,58], side:"A", giver:"Warden Thelwater", loc:"Sturmwind, am Verlies", obj:"Bring den Kopf von Bazil Thredd.", steps:["Teil der Questreihe aus „The Unsent Letter“ (Todesminen)."], reward:"Folgequest"}
   ]
 },
 {
-  id:"sm", name:"Scarlet Monastery", de:"Das Scharlachrote Kloster", zone:"Tirisfal", level:"26–45", min:26, faction:"N",
+  id:"sm", name:"Scarlet Monastery", de:"Das Scharlachrote Kloster", zone:"Tirisfal", level:"26–45", min:26, faction:"N", xy:[82,33],
   entrance:"Im Nordosten von Tirisfal. Das Kloster hat vier Flügel mit eigenen Eingängen: Friedhof, Bibliothek, Waffenkammer und Kathedrale.",
   desc:"Festung des Scharlachroten Kreuzzugs. Vier getrennte Instanzen mit steigender Stufe – Friedhof (26–36), Bibliothek (29–39), Waffenkammer (32–42), Kathedrale (35–45). Für Waffenkammer und Kathedrale wird der Scarlet Key aus der Bibliothek benötigt (in Classic).",
   bosses:[
@@ -498,17 +507,17 @@ const DUNGEONS = [
     "Kathedrale: durch Hof und Hallen zu Mograine – dann Whitemane."
   ],
   quests:[
-    {name:"Into The Scarlet Monastery", side:"H", giver:"Varimathras", loc:"Unterstadt, Königsviertel", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Alle drei Flügel mit Bossen erledigen.","Vorquest über „The Scarlet Crusade“ in Unterstadt."], reward:"Sword of Omen, Prophetic Cane oder Dragon's Blood Necklace"},
-    {name:"In the Name of the Light", side:"A", giver:"Raleigh the Devout", loc:"Vorgebirge des Hügellands, Süderstade", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Vorquests beginnen bei Brother Crowley in Sturmwind (Kathedrale).","Alle vier Ziele erledigen."], reward:"Wahl eines blauen Gegenstands"},
-    {name:"Compendium of the Fallen", side:"H", giver:"Sage Truthseeker", loc:"Donnerfels, Anhöhe der Geister", obj:"Bring das Compendium of the Fallen aus der Bibliothek.", steps:["Steht in der Bibliothek auf einem Bücherregal.","Nicht für Untote verfügbar."], reward:"Vanquisher's Sword, Horizon Choker oder Omega Orb"},
-    {name:"Mythology of the Titans", side:"A", giver:"Librarian Mae Paledust", loc:"Eisenschmiede, Halle der Forscher", obj:"Bring das Buch „Mythology of the Titans“.", steps:["Liegt in der Bibliothek auf dem Boden eines Raums."], reward:"Explorers' League Commendation"},
-    {name:"Hearts of Zeal", side:"H", giver:"Master Apothecary Faranell", loc:"Unterstadt, Apothekarium", obj:"Sammle 20 Hearts of Zeal.", steps:["Droppen von Scharlachroten Gegnern im Kloster."], reward:"Erfahrung"},
-    {name:"Test of Lore", side:"H", giver:"Parqual Fintallas", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch „Beginnings of the Undead Threat“.", steps:["In der Bibliothek in einem Regal."], reward:"Wahl eines grünen Gegenstands"},
-    {name:"Vorrel Sengutz", side:"H", giver:"Monika Sengutz", loc:"Vorgebirge des Hügellands, Tarrens Mühle", obj:"Bring Vorrels Ehering zurück.", steps:["Vorrel Sengutz ist ein NPC im Friedhof-Flügel."], reward:"Erfahrung"}
+    {name:"Into The Scarlet Monastery", xy:[56,92], side:"H", giver:"Varimathras", loc:"Unterstadt, Königsviertel", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Alle drei Flügel mit Bossen erledigen.","Vorquest über „The Scarlet Crusade“ in Unterstadt."], reward:"Sword of Omen, Prophetic Cane oder Dragon's Blood Necklace"},
+    {name:"In the Name of the Light", xy:[51,58], side:"A", giver:"Raleigh the Devout", loc:"Vorgebirge des Hügellands, Süderstade", obj:"Töte Herod, Arcanist Doan, Scarlet Commander Mograine und High Inquisitor Whitemane.", steps:["Vorquests beginnen bei Brother Crowley in Sturmwind (Kathedrale).","Alle vier Ziele erledigen."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Compendium of the Fallen", xy:[34,47], side:"H", giver:"Sage Truthseeker", loc:"Donnerfels, Anhöhe der Geister", obj:"Bring das Compendium of the Fallen aus der Bibliothek.", steps:["Steht in der Bibliothek auf einem Bücherregal.","Nicht für Untote verfügbar."], reward:"Vanquisher's Sword, Horizon Choker oder Omega Orb"},
+    {name:"Mythology of the Titans", xy:[74,12], side:"A", giver:"Librarian Mae Paledust", loc:"Eisenschmiede, Halle der Forscher", obj:"Bring das Buch „Mythology of the Titans“.", steps:["Liegt in der Bibliothek auf dem Boden eines Raums."], reward:"Explorers' League Commendation"},
+    {name:"Hearts of Zeal", xy:[48,69], side:"H", giver:"Master Apothecary Faranell", loc:"Unterstadt, Apothekarium", obj:"Sammle 20 Hearts of Zeal.", steps:["Droppen von Scharlachroten Gegnern im Kloster."], reward:"Erfahrung"},
+    {name:"Test of Lore", xy:[57,65], side:"H", giver:"Parqual Fintallas", loc:"Unterstadt, Apothekarium", obj:"Bring das Buch „Beginnings of the Undead Threat“.", steps:["In der Bibliothek in einem Regal."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Vorrel Sengutz", xy:[62,19], side:"H", giver:"Monika Sengutz", loc:"Vorgebirge des Hügellands, Tarrens Mühle", obj:"Bring Vorrels Ehering zurück.", steps:["Vorrel Sengutz ist ein NPC im Friedhof-Flügel."], reward:"Erfahrung"}
   ]
 },
 {
-  id:"zf", name:"Zul'Farrak", de:"Zul'Farrak", zone:"Tanaris", level:"44–54", min:44, faction:"N",
+  id:"zf", name:"Zul'Farrak", de:"Zul'Farrak", zone:"Tanaris", level:"44–54", min:44, faction:"N", xy:[39,21],
   entrance:"Im Nordwesten von Tanaris. Von Gadgetzan aus nach Westen/Nordwesten durch die Wüste; das Tor liegt in einer großen Trollstadt.",
   desc:"Die Stadt der Sandwut-Trolle. Bekannt für das große Treppen-Event, die Riesenhydra Gahz'rilla und die vielen Quests aus Gadgetzan.",
   bosses:[
@@ -528,16 +537,16 @@ const DUNGEONS = [
     "Am heiligen Teich Velratha; mit dem Mallet Gahz'rilla beschwören."
   ],
   quests:[
-    {name:"Divino-matic Rod", side:"B", giver:"Chief Engineer Bilgewhizzle", loc:"Tanaris, Gadgetzan", obj:"Bring den Divino-matic Rod.", steps:["Droppt von Sergeant Bly nach dem Treppen-Event."], reward:"Wahl eines Gegenstands"},
-    {name:"Gahz'rilla", side:"B", giver:"Wizzle Brassbolts", loc:"Tausend Nadeln, Mirage Raceway", obj:"Bring Gahz'rilla's Electrified Scale.", steps:["Mallet of Zul'Farrak wird benötigt (Questreihe aus dem Hinterland/Jintha'Alor).","Gahz'rilla am Teich beschwören."], reward:"Carrot on a Stick"},
-    {name:"Tiara of the Deep", side:"B", giver:"Tabetha", loc:"Düstermarschen, Tabethas Hütte", obj:"Bring die Tiara of the Deep.", steps:["Droppt von Hydromancer Velratha."], reward:"Wahl eines Gegenstands"},
-    {name:"The Prophecy of Mosh'aru", side:"B", giver:"Yeh'kinya", loc:"Tanaris, Hafen von Steamwheedle", obj:"Bring beide Mosh'aru-Tafeln.", steps:["Erste Tafel von Theka the Martyr, zweite von Hydromancer Velratha."], reward:"Folgequest (Ei für den Tempel von Atal'Hakkar)"},
-    {name:"Troll Temper", side:"B", giver:"Trenton Lighthammer", loc:"Tanaris, Gadgetzan", obj:"Sammle 20 Vials of Troll Temper.", steps:["Droppen von den Trollen in Zul'Farrak."], reward:"Erfahrung, Ruf"},
-    {name:"Scarab Shells", side:"B", giver:"Tran'rek", loc:"Tanaris, Gadgetzan", obj:"Sammle 5 Uncracked Scarab Shells.", steps:["Droppen von den Skarabäen in Zul'Farrak."], reward:"Erfahrung"}
+    {name:"Divino-matic Rod", xy:[52,28], side:"B", giver:"Chief Engineer Bilgewhizzle", loc:"Tanaris, Gadgetzan", obj:"Bring den Divino-matic Rod.", steps:["Droppt von Sergeant Bly nach dem Treppen-Event."], reward:"Wahl eines Gegenstands"},
+    {name:"Gahz'rilla", xy:[78,77], side:"B", giver:"Wizzle Brassbolts", loc:"Tausend Nadeln, Mirage Raceway", obj:"Bring Gahz'rilla's Electrified Scale.", steps:["Mallet of Zul'Farrak wird benötigt (Questreihe aus dem Hinterland/Jintha'Alor).","Gahz'rilla am Teich beschwören."], reward:"Carrot on a Stick"},
+    {name:"Tiara of the Deep", xy:[46,57], side:"B", giver:"Tabetha", loc:"Düstermarschen, Tabethas Hütte", obj:"Bring die Tiara of the Deep.", steps:["Droppt von Hydromancer Velratha."], reward:"Wahl eines Gegenstands"},
+    {name:"The Prophecy of Mosh'aru", xy:[66,22], side:"B", giver:"Yeh'kinya", loc:"Tanaris, Hafen von Steamwheedle", obj:"Bring beide Mosh'aru-Tafeln.", steps:["Erste Tafel von Theka the Martyr, zweite von Hydromancer Velratha."], reward:"Folgequest (Ei für den Tempel von Atal'Hakkar)"},
+    {name:"Troll Temper", xy:[51,28], side:"B", giver:"Trenton Lighthammer", loc:"Tanaris, Gadgetzan", obj:"Sammle 20 Vials of Troll Temper.", steps:["Droppen von den Trollen in Zul'Farrak."], reward:"Erfahrung, Ruf"},
+    {name:"Scarab Shells", xy:[51,26], side:"B", giver:"Tran'rek", loc:"Tanaris, Gadgetzan", obj:"Sammle 5 Uncracked Scarab Shells.", steps:["Droppen von den Skarabäen in Zul'Farrak."], reward:"Erfahrung"}
   ]
 },
 {
-  id:"mara", name:"Maraudon", de:"Maraudon", zone:"Desolace", level:"46–55", min:46, faction:"N",
+  id:"mara", name:"Maraudon", de:"Maraudon", zone:"Desolace", level:"46–55", min:46, faction:"N", xy:[29,62],
   entrance:"Im Westen von Desolace. Vor der Instanz gibt es zwei Höhlen (orange und lila), die zu zwei Eingängen führen. Der innere Eingang (Erdinnere) wird mit dem Scepter of Celebras über ein Portal erreicht.",
   desc:"Grabstätte von Zaetar, Sohn des Cenarius. Seine Geliebte, Prinzessin Theradras, verdirbt das Land und die Zentauren.",
   bosses:[
@@ -557,10 +566,10 @@ const DUNGEONS = [
     "Prinzessin Theradras am Ende in der Höhle hinter dem See."
   ],
   quests:[
-    {name:"Legends of Maraudon", side:"B", giver:"Cavindra", loc:"Desolace, Höhle vor Maraudon (orange Seite)", obj:"Bring die beiden Teile des Celebrian-Stabs.", steps:["Celebrian Rod von Noxxion, Celebrian Diamond von Lord Vyletongue.","Danach Celebras' Geist helfen – führt zum Scepter of Celebras (Abkürzung in die Erdinnere)."], reward:"Scepter of Celebras"},
-    {name:"Corruption of Earth and Seed", side:"B", giver:"Keeper Marandis (Allianz, Nijelspitze) / Selendra (Horde)", loc:"Desolace", obj:"Töte Princess Theradras.", steps:["Theradras am Ende töten.","Die Abgabe für Horde ist bei Selendra in Desolace."], reward:"Wahl eines blauen Gegenstands"},
-    {name:"Twisted Evils", side:"B", giver:"Willow", loc:"Desolace", obj:"Sammle 25 Theradric Crystal Carvings.", steps:["Droppen von fast allen Gegnern in Maraudon."], reward:"Wahl eines grünen Gegenstands"},
-    {name:"Vyletongue Corruption", side:"B", giver:"Talendria (Allianz, Nijelspitze) / Vark Battlescar (Horde, Schattenflucht)", loc:"Desolace", obj:"Fülle die Coated Cerulean Vial am orangefarbenen Kristallteich und reinige 8 Pflanzen.", steps:["Die Phiole am orangefarbenen Teich vor der Instanz füllen.","In der Instanz damit Pflanzen reinigen."], reward:"Wahl eines grünen Gegenstands"}
+    {name:"Legends of Maraudon", xy:[29,62], side:"B", giver:"Cavindra", loc:"Desolace, Höhle vor Maraudon (orange Seite)", obj:"Bring die beiden Teile des Celebrian-Stabs.", steps:["Celebrian Rod von Noxxion, Celebrian Diamond von Lord Vyletongue.","Danach Celebras' Geist helfen – führt zum Scepter of Celebras (Abkürzung in die Erdinnere)."], reward:"Scepter of Celebras"},
+    {name:"Corruption of Earth and Seed", xy:{A:[63,10],H:[27,77]}, side:"B", giver:"Keeper Marandis (Allianz, Nijelspitze) / Selendra (Horde)", loc:"Desolace", obj:"Töte Princess Theradras.", steps:["Theradras am Ende töten.","Die Abgabe für Horde ist bei Selendra in Desolace."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Twisted Evils", xy:[62,39], side:"B", giver:"Willow", loc:"Desolace", obj:"Sammle 25 Theradric Crystal Carvings.", steps:["Droppen von fast allen Gegnern in Maraudon."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"Vyletongue Corruption", xy:{A:[68,8],H:[23,70]}, side:"B", giver:"Talendria (Allianz, Nijelspitze) / Vark Battlescar (Horde, Schattenflucht)", loc:"Desolace", obj:"Fülle die Coated Cerulean Vial am orangefarbenen Kristallteich und reinige 8 Pflanzen.", steps:["Die Phiole am orangefarbenen Teich vor der Instanz füllen.","In der Instanz damit Pflanzen reinigen."], reward:"Wahl eines grünen Gegenstands"}
   ]
 },
 {
@@ -587,13 +596,13 @@ const DUNGEONS = [
   ],
   quests:[
     {name:"Attunement to the Core", side:"B", giver:"Lothos Riftwaker", loc:"Schwarzfels, oberhalb des Eingangs", obj:"Bring ein Core Fragment.", steps:["Das Fragment liegt in der Nähe des Portals zum Geschmolzenen Kern in Schwarzfelstiefen."], reward:"Einstimmung auf den Geschmolzenen Kern"},
-    {name:"The Royal Rescue", side:"A", giver:"King Magni Bronzebeard", loc:"Eisenschmiede, Thronsaal", obj:"Töte Emperor Dagran Thaurissan und befreie Moira Bronzebeard.", steps:["Vorquests über Kharan Mighthammer (im Gefängnis von Schwarzfelstiefen).","Moira dabei nicht töten."], reward:"Wahl eines blauen Gegenstands"},
-    {name:"Commander Gor'shak", side:"H", giver:"Galamav the Marksman", loc:"Ödland, Kargath", obj:"Finde Commander Gor'shak.", steps:["Gor'shak sitzt im Gefängnis; mit dem Prison Cell Key befreien.","Startet eine längere Hordenreihe in Schwarzfelstiefen."], reward:"Folgequests"},
+    {name:"The Royal Rescue", xy:[39,55], side:"A", giver:"King Magni Bronzebeard", loc:"Eisenschmiede, Thronsaal", obj:"Töte Emperor Dagran Thaurissan und befreie Moira Bronzebeard.", steps:["Vorquests über Kharan Mighthammer (im Gefängnis von Schwarzfelstiefen).","Moira dabei nicht töten."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Commander Gor'shak", xy:[5,47], side:"H", giver:"Galamav the Marksman", loc:"Ödland, Kargath", obj:"Finde Commander Gor'shak.", steps:["Gor'shak sitzt im Gefängnis; mit dem Prison Cell Key befreien.","Startet eine längere Hordenreihe in Schwarzfelstiefen."], reward:"Folgequests"},
     {name:"Dark Iron Legacy", side:"B", giver:"Franclorn Forgewright", loc:"Schwarzfels (als Geist sichtbar)", obj:"Ironfel zurückholen.", steps:["Pyromancer Loregrain töten, er hat Ironfel.","Ironfel an Franclorns Schrein legen – ergibt den Shadowforge Key."], reward:"Shadowforge Key"}
   ]
 },
 {
-  id:"scholo", name:"Scholomance", de:"Scholomance", zone:"Westliche Pestländer", level:"58–60", min:58, faction:"N",
+  id:"scholo", name:"Scholomance", de:"Scholomance", zone:"Westliche Pestländer", level:"58–60", min:58, faction:"N", xy:[69,73],
   entrance:"Auf der Insel Caer Darrow im Darrowsee (Westliche Pestländer). Für die Tür ist der Skeleton Key nötig (Questreihe ab Zugwindlager bzw. Das Bollwerk).",
   desc:"Eine Schule der Nekromantie, geleitet von Darkmaster Gandling. Hier droppen u. a. die Helme des Dungeon-Sets.",
   bosses:[
@@ -610,14 +619,14 @@ const DUNGEONS = [
     "Danach erscheint Darkmaster Gandling im Zentrum."
   ],
   quests:[
-    {name:"Barov Family Fortune", side:"B", giver:"Weldon Barov (Allianz, Zugwindlager) / Alexi Barov (Horde, Das Bollwerk)", loc:"Westliche Pestländer", obj:"Sammle die vier Besitzurkunden der Barovs.", steps:["Die Urkunden liegen in verschiedenen Räumen der Scholomance."], reward:"Wahl eines Gegenstands"},
-    {name:"Plagued Hatchlings", side:"B", giver:"Alchemist Arbington (Allianz) / Apothecary Dithers (Horde)", loc:"Westliche Pestländer (Zugwindlager / Das Bollwerk)", obj:"Töte 20 Plagued Hatchlings.", steps:["Im Raum mit den Drachenwelpen; Dawn's Gambit-Questreihe folgt."], reward:"Folgequest"},
-    {name:"Doctor Theolen Krastinov, the Butcher", side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Doctor Theolen Krastinov.", steps:["Krastinov ist in einem der Räume um die zentrale Halle."], reward:"Folgequest"},
-    {name:"Kirtonos the Herald", side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Kirtonos the Herald.", steps:["Mit Blood of Innocents beschwören (aus der Folgereihe)."], reward:"Wahl eines Gegenstands"}
+    {name:"Barov Family Fortune", xy:{A:[43,83],H:[28,57]}, side:"B", giver:"Weldon Barov (Allianz, Zugwindlager) / Alexi Barov (Horde, Das Bollwerk)", loc:"Westliche Pestländer", obj:"Sammle die vier Besitzurkunden der Barovs.", steps:["Die Urkunden liegen in verschiedenen Räumen der Scholomance."], reward:"Wahl eines Gegenstands"},
+    {name:"Plagued Hatchlings", xy:{A:[42,84],H:[26,59]}, side:"B", giver:"Alchemist Arbington (Allianz) / Apothecary Dithers (Horde)", loc:"Westliche Pestländer (Zugwindlager / Das Bollwerk)", obj:"Töte 20 Plagued Hatchlings.", steps:["Im Raum mit den Drachenwelpen; Dawn's Gambit-Questreihe folgt."], reward:"Folgequest"},
+    {name:"Doctor Theolen Krastinov, the Butcher", xy:[70,73], side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Doctor Theolen Krastinov.", steps:["Krastinov ist in einem der Räume um die zentrale Halle."], reward:"Folgequest"},
+    {name:"Kirtonos the Herald", xy:[70,73], side:"B", giver:"Eva Sarkhoff", loc:"Caer Darrow", obj:"Töte Kirtonos the Herald.", steps:["Mit Blood of Innocents beschwören (aus der Folgereihe)."], reward:"Wahl eines Gegenstands"}
   ]
 },
 {
-  id:"strat", name:"Stratholme", de:"Stratholme", zone:"Östliche Pestländer", level:"58–60", min:58, faction:"N",
+  id:"strat", name:"Stratholme", de:"Stratholme", zone:"Östliche Pestländer", level:"58–60", min:58, faction:"N", xy:[27,12],
   entrance:"Im Norden der Östlichen Pestländer. Der Haupteingang führt in die lebendige Seite (Scharlachroter Kreuzzug). Der Diensteingang führt direkt zur untoten Seite (Baron).",
   desc:"Die verfluchte Stadt, in der Arthas einst die Bewohner tötete. Lebendige Seite: Balnazzar als Grand Crusader. Untote Seite: Baron Rivendare – bekannt für den 45-Minuten-„Baron Run“.",
   bosses:[
@@ -640,12 +649,339 @@ const DUNGEONS = [
   ],
   quests:[
     {name:"Dead Man's Plea", side:"B", giver:"Anthion Harmon", loc:"Östliche Pestländer, vor Stratholme", obj:"Befreie Ysida Harmon innerhalb von 45 Minuten nach dem Betreten.", steps:["Timer läuft ab dem ersten Ziggurat-Boss.","Baron Rivendare rechtzeitig töten."], reward:"Wichtiger Teil der Dungeon-Set-Upgrade-Reihe"},
-    {name:"Houses of the Holy", side:"B", giver:"Leonid Barthalomew the Revered", loc:"Östliche Pestländer, Kapelle des Hoffnungsvollen Lichts", obj:"Sammle 5 Stratholme Holy Water.", steps:["Die Kisten mit Holy Water stehen in den Häusern der lebendigen Seite."], reward:"Wahl zwischen Heiltränken"},
-    {name:"The Restless Souls", side:"B", giver:"Egan", loc:"Östliche Pestländer", obj:"Befreie 15 Spectral Citizens mit Egan's Blaster.", steps:["Spektrale Bürger auf den Straßen von Stratholme beschießen, dann töten."], reward:"Wahl eines Gegenstands"},
-    {name:"Ramstein", side:"H", giver:"Nathanos Blightcaller", loc:"Östliche Pestländer", obj:"Bring den Kopf von Ramstein the Gorger.", steps:["Ramstein im Schlachthof töten."], reward:"Wahl eines Gegenstands"}
+    {name:"Houses of the Holy", xy:[75,54], side:"B", giver:"Leonid Barthalomew the Revered", loc:"Östliche Pestländer, Kapelle des Hoffnungsvollen Lichts", obj:"Sammle 5 Stratholme Holy Water.", steps:["Die Kisten mit Holy Water stehen in den Häusern der lebendigen Seite."], reward:"Wahl zwischen Heiltränken"},
+    {name:"The Restless Souls", xy:[14,33], side:"B", giver:"Egan", loc:"Östliche Pestländer", obj:"Befreie 15 Spectral Citizens mit Egan's Blaster.", steps:["Spektrale Bürger auf den Straßen von Stratholme beschießen, dann töten."], reward:"Wahl eines Gegenstands"},
+    {name:"Ramstein", xy:[26,74], side:"H", giver:"Nathanos Blightcaller", loc:"Östliche Pestländer", obj:"Bring den Kopf von Ramstein the Gorger.", steps:["Ramstein im Schlachthof töten."], reward:"Wahl eines Gegenstands"}
   ]
 }
 ];
+
+
+/* ---------- Weitere Dungeons ---------- */
+DUNGEONS.push(
+{
+  id:"gnomer", name:"Gnomeregan", de:"Gnomeregan", zone:"Dun Morogh", level:"24–33", min:24, faction:"A", xy:[24,39],
+  entrance:"Im Westen von Dun Morogh, westlich von Kharanos. Ein Tunnel führt bergab zum Eingang der alten Gnomenhauptstadt.",
+  desc:"Die verseuchte Hauptstadt der Gnome. Der Verräter Mekgineer Thermaplugg hat die Stadt mit Strahlung überflutet und hält sie mit Troggs und Maschinen besetzt.",
+  bosses:[
+    {name:"Grubbis", tag:"Trogg (Event)", tactic:"Erscheint beim Begleit-Event mit Blastmaster Emi Shortfuse, die den Eingang sprengt. Wellen von Troggs abwehren, Emi beschützen.", drops:[]},
+    {name:"Viscous Fallout", tag:"Strahlungsschleim", tactic:"Giftiger Schleim mit Gift-DoT. Gift entfernen, normaler Kampf.", drops:[]},
+    {name:"Electrocutioner 6000", tag:"Roboter", tactic:"Kettenblitze – Gruppe verteilt stellen. Er trägt den Workshop Key für die Abkürzung.", drops:[{n:"Workshop Key",q:"quest",s:"Schlüssel"}]},
+    {name:"Crowd Pummeler 9-60", tag:"Roboter", tactic:"Schlägt alle Gegner vor sich mit Flächenschaden. Nur der Tank vorne, alle anderen dahinter.", drops:[{n:"Manual Crowd Pummeler",q:"rare",s:"Zweihandstreitkolben"}]},
+    {name:"Dark Iron Ambassador", tag:"Seltener Gegner", rare:true, tactic:"Nicht immer da. Feuerschild-Zauberer, Feuer-Elementar zuerst töten.", drops:[]},
+    {name:"Mekgineer Thermaplugg", tag:"Endboss", tactic:"Aus den Wänden kommen Bomben-Roboter. Je ein Spieler drückt die Knöpfe neben den Rohren, um die Bomben zu stoppen. Der Rest bleibt am Boss.", drops:[{n:"Thermaplugg's Safe Combination",q:"quest",s:"Questgegenstand (Horde)"}]}
+  ],
+  route:[
+    "Vom Eingang durch die Tunnel bis zum großen Hof; Blastmaster Emi für das Grubbis-Event ansprechen (optional).",
+    "Durch die Säle und Gänge zum Viscous Fallout, weiter in die Tiefen.",
+    "In der Maschinenhalle Electrocutioner 6000, dann den Gang zum Crowd Pummeler.",
+    "Über die Rampen nach unten zu Thermaplugg."
+  ],
+  quests:[
+    {name:"Gnogaine", side:"A", xy:[45,49], giver:"Ozzie Togglevolt", loc:"Dun Morogh, Kharanos", obj:"Sammle 12 Ionized Radiation-Proben von verstrahlten Gegnern vor Gnomeregan.", steps:["Mit dem leeren Behälter vor dem Eingang verstrahlte Troggs und Leper Gnome anvisieren.","Folgequest „The Day After“."], reward:"Erfahrung, Folgequest"},
+    {name:"Essential Artificials", side:"A", xy:[68,46], giver:"Klockmort Spannerspan", loc:"Eisenschmiede, Tüftlerstadt", obj:"Sammle 12 Essential Artificials.", steps:["Aus Maschinenresten (Artificial Extrapolator) in Gnomeregan."], reward:"Erfahrung"},
+    {name:"Data Rescue", side:"A", xy:[69,50], giver:"Master Mechanic Castpipe", loc:"Eisenschmiede, Tüftlerstadt", obj:"Bring eine farbige Lochkarte (Prismatic Punch Card).", steps:["In Gnomeregan nacheinander weiße, gelbe, blaue, rote und prismatische Karten an den Terminals erstellen."], reward:"Wahl eines Gegenstands"},
+    {name:"Save Techbot!", side:"A", xy:[69,50], giver:"Tinkmaster Overspark", loc:"Eisenschmiede, Tüftlerstadt", obj:"Bring Techbot's Memory Core.", steps:["Techbot ist ein feindlicher Roboter gleich hinter dem Eingang."], reward:"Erfahrung"},
+    {name:"A Fine Mess", side:"A", giver:"Kernobee", loc:"In Gnomeregan", obj:"Begleite Kernobee hinaus zur Clockwerk Run.", steps:["Kernobee steht im vorderen Bereich; zum Ausgang begleiten."], reward:"Wahl zwischen Rüstungsteilen"},
+    {name:"Rig Wars", side:"H", xy:[75,25], giver:"Nogg", loc:"Orgrimmar, Tal der Ehre", obj:"Bring die Rig Blueprints und Thermaplugg's Safe Combination.", steps:["Die Pläne liegen in Gnomeregan in einer Kiste, die Kombination droppt von Thermaplugg."], reward:"Wahl eines Rings"}
+  ]
+},
+{
+  id:"rfk", name:"Razorfen Kraul", de:"Der Kral der Klingenhauer", zone:"Brachland", level:"25–35", min:25, faction:"N", xy:[42,89],
+  entrance:"Ganz im Süden des Brachlands, kurz vor Tausend Nadeln. Ein Gewirr aus riesigen Dornenranken – der Eingang liegt im westlichen Teil.",
+  desc:"Hochburg der Stacheleber (Quilboar) im Dornengewirr, gelenkt von der Hexe Charlga Razorflank.",
+  bosses:[
+    {name:"Roogug", tag:"Geomant", tactic:"Ruft Erdelementare. Schnell töten.", drops:[]},
+    {name:"Aggem Thorncurse", tag:"Stacheleber", tactic:"Heiler-Typ mit Begleitern; zuerst ihn unterbrechen.", drops:[]},
+    {name:"Death Speaker Jargba", tag:"Stacheleber", tactic:"Gedankenkontrolle – Gruppe nicht in Adds stellen.", drops:[]},
+    {name:"Overlord Ramtusk", tag:"Stacheleber", tactic:"Mit Wachen. Wachen kontrollieren, Ramtusk zuerst.", drops:[]},
+    {name:"Agathelos the Raging", tag:"Wildeber", tactic:"In einer Grube mit vielen Ebern. Vorher die Eber am Rand einzeln ziehen.", drops:[]},
+    {name:"Blind Hunter", tag:"Seltener Gegner", rare:true, tactic:"Fledermaus-Rarität in einer Nebenhöhle.", drops:[]},
+    {name:"Charlga Razorflank", tag:"Endboss", tactic:"Heilt und ruft Begleiter. Heilungen unterbrechen.", drops:[]}
+  ],
+  route:[
+    "Vom Eingang durch das Dornengewirr: Roogug, dann Aggem Thorncurse.",
+    "Willix the Importer befreien und zum Ausgang begleiten (Quest).",
+    "Weiter zu Death Speaker Jargba und Overlord Ramtusk.",
+    "Agathelos in der Grube, dann Charlga Razorflank am Ende."
+  ],
+  quests:[
+    {name:"Blueleaf Tubers", side:"B", xy:[62,37], giver:"Mebok Mizzyrix", loc:"Brachland, Ratschet", obj:"Sammle 6 Blueleaf Tubers.", steps:["Mit Crate with Holes und Snufflenose Command Stick eine Ratte rufen, die nach den Knollen buddelt."], reward:"Erfahrung, Tränke"},
+    {name:"Willix the Importer", side:"B", giver:"Willix the Importer", loc:"Im Kral (gefangen)", obj:"Begleite Willix hinaus.", steps:["Er ist im vorderen Teil gefangen; zum Ausgang begleiten."], reward:"Wahl zwischen grünen Gegenständen"},
+    {name:"Going, Going, Guano!", side:"H", xy:[22,20], giver:"Apothecary Zamah", loc:"Donnerfels, Anhöhe der Geister (Höhle)", obj:"Bring 1 Kraul Guano.", steps:["Droppt von den Fledermäusen im Kral."], reward:"Erfahrung"}
+  ]
+},
+{
+  id:"rfd", name:"Razorfen Downs", de:"Die Hügel der Klingenhauer", zone:"Brachland", level:"33–43", min:33, faction:"N", xy:[49,93],
+  entrance:"Im äußersten Süden des Brachlands direkt an der Grenze zu Tausend Nadeln, östlich vom Kral.",
+  desc:"Die Stacheleber haben sich mit der Geißel verbündet. Der Lich Amnennar der Kältebringer herrscht über die Hügel.",
+  bosses:[
+    {name:"Tuten'kash", tag:"Riesenspinne (Gong-Event)", tactic:"Am Gong drei Mal schlagen: Erst Spinnenwellen, dann Käfer, beim dritten Mal Tuten'kash. Gruppe nahe am Gong halten.", drops:[]},
+    {name:"Mordresh Fire Eye", tag:"Untoter Zauberer", tactic:"Feuerbälle und Feuernova – Fernkämpfer auseinander, Nahkämpfer bei Nova kurz weg.", drops:[]},
+    {name:"Glutton", tag:"Untoter", tactic:"Frisst sich bei niedriger Gesundheit voll und heilt sich – vorher Schaden sparen und am Ende alles zünden.", drops:[]},
+    {name:"Ragglesnout", tag:"Seltener Gegner", rare:true, tactic:"Nicht immer da. Heiler-Stacheleber, unterbrechen.", drops:[]},
+    {name:"Plaguemaw the Rotting", tag:"Seltener Gegner", rare:true, tactic:"Krankheit verbreiten – Krankheiten entfernen.", drops:[]},
+    {name:"Amnennar the Coldbringer", tag:"Endboss (Lich)", tactic:"Frostnova und Frostschaden. Ruft bei 50 % Frost-Abbilder der Spieler – diese mit Flächenschaden beseitigen.", drops:[]}
+  ],
+  route:[
+    "Am Eingang Belnistrasz befreien und das Ritual „Extinguishing the Idol“ schützen (Wellen von Gegnern).",
+    "Tuten'kash über den Gong rufen.",
+    "Durch die Hügel zu Mordresh Fire Eye und Glutton.",
+    "Amnennar oben auf dem höchsten Punkt."
+  ],
+  quests:[
+    {name:"Extinguishing the Idol", side:"B", giver:"Belnistrasz", loc:"Im Dungeon (am Anfang)", obj:"Beschütze Belnistrasz während des Rituals am Götzenbild.", steps:["Zuerst „Scourge of the Downs“ bzw. die Vorquest von Belnistrasz abschließen.","Er wirkt einige Minuten; Wellen von Gegnern abfangen."], reward:"Wahl eines Gegenstands"},
+    {name:"Bring the End", side:"H", xy:[72,32], giver:"Andrew Brownell", loc:"Unterstadt, Magierviertel", obj:"Bring den Schädel von Amnennar.", steps:["Amnennar am Ende töten."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"Bring the Light", side:"A", xy:[39,27], giver:"Archbishop Benedictus", loc:"Sturmwind, Kathedrale des Lichts", obj:"Töte Amnennar the Coldbringer.", steps:["Amnennar am Ende töten."], reward:"Wahl eines blauen Gegenstands"},
+    {name:"An Unholy Alliance", side:"H", xy:[56,92], giver:"Varimathras", loc:"Unterstadt, Königsviertel", obj:"Bring den Kopf von Ambassador Malcin.", steps:["Malcin steht vor dem Dungeon in den Hügeln."], reward:"Wahl eines Gegenstands"}
+  ]
+},
+{
+  id:"ulda", name:"Uldaman", de:"Uldaman", zone:"Ödland", level:"37–47", min:37, faction:"N", xy:[42,13],
+  entrance:"Im Norden des Ödlands an einer Ausgrabungsstätte der Zwerge. Der Hintereingang ist über die Ausgrabungstunnel erreichbar, der Haupteingang nach dem Gang durch die Höhle.",
+  desc:"Eine Titanenstätte, in der Dunkeleisenzwerge und Troggs nach Artefakten graben. Der steinerne Wächter Archaedas bewacht die Tiefen.",
+  bosses:[
+    {name:"Revelosh", tag:"Trogg-Schamane", tactic:"Kettenblitze; verteilt stehen.", drops:[]},
+    {name:"Baelog & Olaf & Eric", tag:"Die verlorenen Zwerge", tactic:"Drei Zwerge zusammen. Den Heiler Eric zuerst, Baelog hat die Questtasche.", drops:[{n:"Baelog's Journal",q:"quest",s:"Questgegenstand"}]},
+    {name:"Ironaya", tag:"Steinriesin", tactic:"Wirft Spieler weg und stampft. Den Tank an eine Wand stellen.", drops:[]},
+    {name:"Obsidian Sentinel", tag:"Golem", tactic:"Teilt sich in kleinere Wächter. Flächenschaden.", drops:[]},
+    {name:"Ancient Stone Keeper", tag:"Steinwesen", tactic:"Lässt Steinfallen fallen – nicht darin stehen.", drops:[]},
+    {name:"Galgann Firehammer", tag:"Dunkeleisenzwerg", tactic:"Feuerschaden; Feuerschutztrank hilft.", drops:[]},
+    {name:"Grimlok", tag:"Trogg-Anführer", tactic:"Schrumpft Gegner und ruft Blitze.", drops:[]},
+    {name:"Archaedas", tag:"Endboss", tactic:"Wird am Altar in der Halle der Wächter erweckt. Weckt im Laufe des Kampfs Wächter und Steinzwerge – Adds schnell kontrollieren, Heiler bleiben im Hintergrund.", drops:[]}
+  ],
+  route:[
+    "Revelosh im Höhlenbereich, Baelogs Gruppe im Nebenraum.",
+    "Die große Halle – Ironaya hinter der Tür, die der Staff of Prehistoria öffnet.",
+    "Obsidian Sentinel, Ancient Stone Keeper und Galgann.",
+    "Grimlok, dann hinab zu Archaedas. Danach in der Kammer der Platin-Scheiben die Quest abgeben."
+  ],
+  quests:[
+    {name:"Power Stones", side:"B", xy:[42,52], giver:"Rigglefuzz", loc:"Ödland", obj:"Sammle 8 Dentrium und 8 An'Alleum Power Stones.", steps:["Droppen von den Schattenwirkern (Shadowforge) in Uldaman."], reward:"Wahl eines grünen Gegenstands"},
+    {name:"The Platinum Discs", side:"B", giver:"Lore Keeper of Norgannon", loc:"Im Dungeon (Kammer hinter Archaedas)", obj:"Lies die Discs of Norgannon und bring die Kopien zurück.", steps:["Mit den Discs im Dungeon sprechen, dann die kleine Kopie in Ironforge bzw. Donnerfels abgeben."], reward:"Wahl eines Gegenstands"},
+    {name:"The Lost Dwarves", side:"A", xy:[74,12], giver:"Prospector Stormpike", loc:"Eisenschmiede, Halle der Forscher", obj:"Finde Baelog in Uldaman.", steps:["Baelog und Freunde im ersten Teil des Dungeons."], reward:"Folgequest"},
+    {name:"Necklace Recovery", side:"A", xy:[36,3], giver:"Talvash del Kissel", loc:"Eisenschmiede, Mystikerviertel", obj:"Finde die Teile des Halsbands.", steps:["Edelsteine und Goldkette liegen bei Gegnern in Uldaman."], reward:"Erfahrung, Folgequests"},
+    {name:"Uldaman Reagent Run", side:"H", xy:[2,46], giver:"Jarkal Mossmeld", loc:"Ödland, Kargath", obj:"Sammle 12 Magenta Fungus Caps.", steps:["Pilze wachsen an den Höhlenwänden im Dungeon."], reward:"Heiltränke"},
+    {name:"Solution to Doom", side:"B", xy:[51,76], giver:"Theldurin the Lost", loc:"Ödland", obj:"Bring die Übersetzung der Tafel von Will.", steps:["Die Tafel im Dungeon auslesen und Theldurin bringen."], reward:"Wahl eines Gegenstands"}
+  ]
+},
+{
+  id:"st", name:"Temple of Atal'Hakkar", de:"Der Versunkene Tempel", zone:"Sümpfe des Elends", level:"50–60", min:50, faction:"N", xy:[70,54],
+  entrance:"Im See der Sümpfe des Elends. Den Tempel umrunden und über die Treppe hinunter in den Eingangsbereich gehen (ein Stück tauchen).",
+  desc:"Der versunkene Tempel des Blutgottes Hakkar. Atal'ai-Trolle wollen ihn zurückholen, grüne Drachen bewachen den Traum.",
+  bosses:[
+    {name:"Atal'alarion", tag:"Statuen-Rätsel", tactic:"Unten im Atrium die sechs Statuen in der richtigen Reihenfolge aktivieren, dann erscheint Atal'alarion. Schlägt Gruppen zurück; Tank mit dem Rücken zur Wand.", drops:[]},
+    {name:"Dreamscythe & Weaver", tag:"Grüne Drachen", tactic:"Auf den Balkonen. Feueratem nach vorne – nur der Tank vorne.", drops:[]},
+    {name:"Jammal'an the Prophet & Ogom the Wretched", tag:"Troll-Priester", tactic:"Jammal'an verhext Spieler und lässt sie explodieren – betroffene Spieler kurz weglaufen. Ogom zuerst bzw. gleichzeitig.", drops:[{n:"Head of Jammal'an",q:"quest",s:"Questgegenstand"}]},
+    {name:"Morphaz & Hazzas", tag:"Grüne Drachen", tactic:"Wie die anderen Drachen; einzeln ziehen.", drops:[]},
+    {name:"Shade of Eranikus", tag:"Endboss", tactic:"Schlaf auf Spieler. Nur der Tank vorne; Heiler mit Abstand.", drops:[{n:"Essence of Eranikus",q:"quest",s:"Startet eine Quest"}]},
+    {name:"Avatar of Hakkar", tag:"Event (optional)", tactic:"Mit dem Egg of Hakkar im Zentrum die Feuer der Hakkari löschen (Blood of Hakkar) und dann den Avatar besiegen.", drops:[]}
+  ],
+  route:[
+    "Unten im Atrium Atal'alarion (Statuen).",
+    "Hinauf auf die Balkone – Dreamscythe und Weaver.",
+    "Durch das Zentrum zu Jammal'an und Ogom.",
+    "Die übrigen Drachen und am Ende der Schatten von Eranikus."
+  ],
+  quests:[
+    {name:"The Temple of Atal'Hakkar", side:"H", xy:[47,54], giver:"Fel'Zerul", loc:"Sümpfe des Elends, Steinard", obj:"Sammle 20 Fetishes of Hakkar.", steps:["Droppen von den Atal'ai-Trollen im Tempel."], reward:"Wahl eines Gegenstands"},
+    {name:"Into the Temple of Atal'Hakkar", side:"A", xy:[64,20], giver:"Brohann Caskbelly", loc:"Sturmwind, Zwergendistrikt", obj:"Sammle 10 Atal'ai Tablets.", steps:["Tafeln liegen auf dem Boden in den Gängen des Tempels."], reward:"Wahl eines Gegenstands"},
+    {name:"Jammal'an the Prophet", side:"B", xy:[33,75], giver:"Atal'ai Exile", loc:"Hinterland", obj:"Bring den Kopf von Jammal'an.", steps:["Jammal'an im Tempel töten."], reward:"Wahl eines Gegenstands"},
+    {name:"The God Hakkar", side:"B", xy:[66,22], giver:"Yeh'kinya", loc:"Tanaris, Hafen von Steamwheedle", obj:"Fülle das Egg of Hakkar am Avatar-Event.", steps:["Vorquest: „The Prophecy of Mosh'aru“ aus Zul'Farrak.","Das Ei im Tempel benutzen und den Avatar besiegen."], reward:"Wahl eines Gegenstands"}
+  ]
+},
+{
+  id:"dmaul", name:"Dire Maul", de:"Düsterbruch", zone:"Feralas", level:"55–60", min:55, faction:"N", xy:[59,44],
+  entrance:"Im Zentrum von Feralas, in einer alten Elfenstadt. Drei Flügel: Ost, West und Nord. Für West und Nord braucht man den Crescent Key (aus Ost).",
+  desc:"Die Ruinen von Eldre'Thalas. Im Osten haust die Satyr-Brut, im Westen die Shen'dralar-Elfen und Immol'thar, im Norden die Gordok-Oger.",
+  bosses:[
+    {name:"Pusillin", tag:"Ost – Wichtel", tactic:"Läuft beim Ansprechen weg; ihn durch den Flügel verfolgen. Er hat den Crescent Key.", drops:[{n:"Crescent Key",q:"quest",s:"Schlüssel"}]},
+    {name:"Zevrim Thornhoof", tag:"Ost", tactic:"Opfert Spieler am Altar – Heiler aufpassen.", drops:[]},
+    {name:"Lethtendris", tag:"Ost", tactic:"Schattenzauber; Netz für die Quest „Lethtendris's Web“.", drops:[{n:"Lethtendris's Web",q:"quest",s:"Questgegenstand"}]},
+    {name:"Alzzin the Wildshaper", tag:"Ost – Endboss", tactic:"Wechselt zwischen Gestalten. Ruft Ranken; Flächenschaden.", drops:[]},
+    {name:"Tendris Warpwood", tag:"West", tactic:"Ruft Ranken, verwurzelt. Vorher die Schutzzauber-Pylonen deaktivieren.", drops:[]},
+    {name:"Immol'thar", tag:"West", tactic:"Die fünf Pylonen deaktivieren, um sein Gefängnis zu öffnen. Kurz unverwundbare Phasen; viele Adds.", drops:[]},
+    {name:"Prince Tortheldrin", tag:"West – Endboss", tactic:"Wirbelwind und Gegenzauber. Nahkämpfer gut positionieren.", drops:[]},
+    {name:"King Gordok", tag:"Nord – Endboss", tactic:"Für den Tribut-Run die Wachen nicht töten (Kreeg trinken lassen, Wachen ablenken). Gordok und Kromcrush zusammen; Kromcrush zuerst. Nach Gordoks Tod wirst du König und bekommst die Tributkiste.", drops:[{n:"Gordok Tribute",q:"quest",s:"Kiste (Tribut)"}]}
+  ],
+  route:[
+    "Ost: Pusillin jagen (Crescent Key), Zevrim, Hydrospawn, Lethtendris, Alzzin.",
+    "West: Pylonen deaktivieren, Tendris Warpwood, Immol'thar, dann Prince Tortheldrin.",
+    "Nord: Für den Tribut die Wachen am Leben lassen, dann Kromcrush und King Gordok."
+  ],
+  quests:[
+    {name:"Pusillin and the Elder Azj'Tordin", side:"B", xy:[76,37], giver:"Azj'Tordin", loc:"Feralas, Lariss-Pavillon", obj:"Bring das Zauberbuch von Pusillin.", steps:["Pusillin im Ostflügel jagen und töten."], reward:"Wahl eines Gegenstands"},
+    {name:"Lethtendris's Web", side:"A", xy:[30,46], giver:"Latronicus Moonspear", loc:"Feralas, Federmondfeste", obj:"Bring Lethtendris's Web.", steps:["Lethtendris im Ostflügel töten."], reward:"Wahl eines Gegenstands"},
+    {name:"Unfinished Gordok Business", side:"B", giver:"Captain Kromcrush", loc:"Im Nordflügel (nach dem Tribut-Run)", obj:"Bring Gordoks Machtstulpen.", steps:["Im Westflügel bei einem Gegner zu finden; nach dem Tribut-Run ansprechbar."], reward:"Ruf-Buff (Fengus' Ferocity etc.)"}
+  ]
+},
+{
+  id:"brs", name:"Blackrock Spire", de:"Die Schwarzfelsspitze", zone:"Schwarzfels", level:"55–60", min:55, faction:"N",
+  entrance:"Im Schwarzfels zwischen Sengender Schlucht und Brennender Steppe. Im Inneren nach oben; LBRS und UBRS teilen sich den Eingang. Für UBRS ist das Seal of Ascension nötig.",
+  desc:"Festung der schwarzen Drachenflüge und der Schwarzfels-Orcs. Untere Spitze (LBRS, 5 Spieler) und Obere Spitze (UBRS, bis zu 10 Spieler).",
+  bosses:[
+    {name:"Highlord Omokk", tag:"LBRS – Oger", tactic:"Mit Oger-Begleitern. Begleiter zuerst. Er droppt einen der drei Edelsteine für das Siegel.", drops:[{n:"Gemstone of Spirestone",q:"quest",s:"Questgegenstand (Siegel)"}]},
+    {name:"Shadow Hunter Vosh'gajin", tag:"LBRS – Troll", tactic:"Flüche und Verhexen – entfernen.", drops:[{n:"Gemstone of Smolderthorn",q:"quest",s:"Questgegenstand (Siegel)"}]},
+    {name:"War Master Voone", tag:"LBRS – Troll", tactic:"Wirft Äxte, Wirbelwind. Nahkämpfer bei Wirbelwind weg.", drops:[{n:"Gemstone of Bloodaxe",q:"quest",s:"Questgegenstand (Siegel)"}]},
+    {name:"Mother Smolderweb", tag:"LBRS – Spinne", tactic:"Vergiftet; Gift entfernen. Questziel „Mother's Milk“.", drops:[]},
+    {name:"Urok Doomhowl", tag:"LBRS – beschworen", tactic:"Mit der Herausforderung beschwören; Wellen von Ogern abwehren.", drops:[]},
+    {name:"Overlord Wyrmthalak", tag:"LBRS – Endboss", tactic:"Ruft bei niedriger Gesundheit zwei Drachkin-Wachen. Schnell töten.", drops:[]},
+    {name:"Pyroguard Emberseer", tag:"UBRS", tactic:"Erst die Ketten-Orcs im Raum töten, dann ist Emberseer frei. Feuerschaden.", drops:[]},
+    {name:"Warchief Rend Blackhand & Gyth", tag:"UBRS", tactic:"In der Arena Wellen von Orcs und Drachkin besiegen, dann kommt Rend auf Gyth. Gyth zuerst, danach steigt Rend ab.", drops:[{n:"Dal'Rend's Sacred Charge",q:"rare",s:"Einhandschwert"},{n:"Dal'Rend's Tribal Guardian",q:"rare",s:"Einhandschwert"}]},
+    {name:"The Beast", tag:"UBRS", tactic:"Furcht und Feueratem. Furchtschutz einsetzen.", drops:[]},
+    {name:"General Drakkisath", tag:"UBRS – Endboss", tactic:"Zwei Chromatic Elite Guards begleiten ihn. Wachen weg-tanken, Feuerschutz nützlich. Ziel der Onyxia-Einstimmung.", drops:[{n:"Dungeon-Set-Brust (je nach Klasse)",q:"rare",s:"Brust"},{n:"Blood of the Black Dragon Champion",q:"quest",s:"Questgegenstand (Horde-Einstimmung)"}]}
+  ],
+  route:[
+    "LBRS: Am Eingang Vaelan ansprechen (Seal of Ascension). Dann Omokk, Vosh'gajin, Voone.",
+    "Mother Smolderweb, Urok, Quartermaster Zigris, Halycon, Gizrul, Wyrmthalak.",
+    "UBRS: Mit dem Siegel durch die große Tür; Emberseer, Solakar (Brutkammer), Rend in der Arena.",
+    "The Beast und schließlich General Drakkisath."
+  ],
+  quests:[
+    {name:"Seal of Ascension", side:"B", giver:"Vaelan", loc:"Am Eingang der Schwarzfelsspitze", obj:"Sammle drei Edelsteine und ein Unadorned Seal of Ascension.", steps:["Gemstone of Spirestone (Omokk), Gemstone of Smolderthorn (Vosh'gajin), Gemstone of Bloodaxe (Voone).","Das Unadorned Seal droppt von Gegnern in LBRS.","Danach das Siegel in der Folgequest schmieden."], reward:"Seal of Ascension (Zugang zu UBRS)"},
+    {name:"Mother's Milk", side:"B", xy:[65,23], giver:"Ragged John", loc:"Brennende Steppe", obj:"Lass dich von Mother Smolderweb vergiften und bring das Gift zu Ragged John.", steps:["Während des Kampfes den Gift-Debuff bekommen, dann sofort zurücklaufen."], reward:"Erfahrung"},
+    {name:"Warlord's Command", side:"H", xy:[5,47], giver:"Warlord Goretooth", loc:"Ödland, Kargath", obj:"Töte Highlord Omokk, War Master Voone und Overlord Wyrmthalak.", steps:["Alle drei in LBRS.","Startpunkt der Horde-Einstimmung auf Onyxia."], reward:"Wahl eines Gegenstands, Folgequest"},
+    {name:"Dragonkin Menace", side:"A", xy:[85,68], giver:"Helendis Riverhorn", loc:"Brennende Steppe, Morgans Wacht", obj:"Töte Drachkin in der Brennenden Steppe.", steps:["Startpunkt der Allianz-Einstimmung auf Onyxia (endet in UBRS)."], reward:"Folgequest"}
+  ]
+}
+);
+
+/* ---------- Schlachtzüge ---------- */
+DUNGEONS.push(
+{
+  id:"mc", raid:true, size:40, name:"Molten Core", de:"Der Geschmolzene Kern", zone:"Schwarzfelstiefen", level:"60", min:60, faction:"N",
+  entrance:"Über Schwarzfelstiefen: Das Portal liegt in einem Raum nahe dem Eingang von BRD. Mit der Einstimmung („Attunement to the Core“) kann man es auch direkt bei Lothos Riftwaker im Schwarzfels nutzen.",
+  desc:"Feuerelementare und Ragnaros, der Feuerfürst, unter dem Schwarzfels. Erster großer Schlachtzug, Quelle der Tier-1-Rüstungen.",
+  bosses:[
+    {name:"Lucifron", tag:"Kernhund-Fürst", tactic:"Flüche (Fluch des Lucifron, drohende Verdammnis) sofort entfernen. Die zwei Flamewaker-Beschützer zuerst töten – sie übernehmen Gedanken.", drops:[{n:"Tier-1-Set: Füße",q:"epic",s:"Set-Teil"}]},
+    {name:"Magmadar", tag:"Kernhund", tactic:"Furcht – Furchtschutz/Totem nutzen. Raserei mit Einlullender Schuss (Jäger) entfernen. Nicht in die Lava-Pfützen stellen.", drops:[{n:"Tier-1-Set: Beine",q:"epic",s:"Set-Teil"},{n:"Striker's Mark",q:"epic",s:"Bogen"},{n:"Earthshaker",q:"epic",s:"Zweihandstreitkolben"},{n:"Medallion of Steadfast Might",q:"epic",s:"Hals"}]},
+    {name:"Gehennas", tag:"Flamewaker", tactic:"Flüche entfernen, aus dem Feuerregen laufen. Wachen zuerst.", drops:[{n:"Tier-1-Set: Hände",q:"epic",s:"Set-Teil"}]},
+    {name:"Garr", tag:"Feuerfürst", tactic:"Acht Begleiter (Firesworn) – Hexenmeister verbannen sie, andere Tanks halten sie. Garr selbst ist einfach.", drops:[{n:"Tier-1-Set: Kopf",q:"epic",s:"Set-Teil"},{n:"Aurastone Hammer",q:"epic",s:"Einhandstreitkolben"},{n:"Brutality Blade",q:"epic",s:"Einhandschwert"},{n:"Bindings of the Windseeker (links)",q:"legendary",s:"Questgegenstand"}]},
+    {name:"Shazzrah", tag:"Flamewaker", tactic:"Teleportiert sich zu zufälligen Spielern (Blinzeln). Flüche entfernen, Magier-Schaden reduzieren.", drops:[{n:"Tier-1-Set: Hände",q:"epic",s:"Set-Teil"}]},
+    {name:"Baron Geddon", tag:"Feuerfürst", tactic:"Lebende Bombe: Der betroffene Spieler läuft weg vom Schlachtzug. Bei Inferno laufen Nahkämpfer weg.", drops:[{n:"Tier-1-Set: Schultern",q:"epic",s:"Set-Teil"},{n:"Bindings of the Windseeker (rechts)",q:"legendary",s:"Questgegenstand"}]},
+    {name:"Golemagg the Incinerator", tag:"Riese", tactic:"Zwei Kernhunde – separat tanken (sie sterben erst mit Golemagg). Golemagg erhöht seinen Schaden mit der Zeit.", drops:[{n:"Tier-1-Set: Brust",q:"epic",s:"Set-Teil"},{n:"Azuresong Mageblade",q:"epic",s:"Einhandschwert"},{n:"Staff of Dominance",q:"epic",s:"Stab"},{n:"Blastershot Launcher",q:"epic",s:"Schusswaffe"},{n:"Sulfuron Ingot",q:"epic",s:"Material"}]},
+    {name:"Sulfuron Harbinger", tag:"Flamewaker", tactic:"Vier Priester heilen ihn – zuerst die Priester töten.", drops:[{n:"Tier-1-Set: Schultern",q:"epic",s:"Set-Teil"},{n:"Shadowstrike",q:"epic",s:"Stangenwaffe"}]},
+    {name:"Majordomo Executus", tag:"Flamewaker", tactic:"Acht Wachen, kein Kampf gegen ihn selbst. Bei Magiereflexion nicht zaubern, bei Schadensreflexion nicht angreifen. Danach öffnet sich der Weg zu Ragnaros. Für das Rufen müssen alle Runen gelöscht sein (Aqual Quintessence).", drops:[{n:"Cache of the Firelord",q:"epic",s:"Kiste"}]},
+    {name:"Ragnaros", tag:"Endboss", tactic:"Zorn des Ragnaros schleudert Nahkämpfer zurück. Nach drei Minuten taucht er ab, Söhne der Flamme erscheinen – diese zügig töten. Nahkämpfer mit Feuerresistenz.", drops:[{n:"Tier-2-Set: Beine",q:"epic",s:"Set-Teil"},{n:"Eye of Sulfuras",q:"legendary",s:"Material (Sulfuras)"},{n:"Bonereaver's Edge",q:"epic",s:"Zweihandschwert"},{n:"Perdition's Blade",q:"epic",s:"Einhanddolch"},{n:"Spinal Reaper",q:"epic",s:"Zweihandaxt"},{n:"Band of Accuria",q:"epic",s:"Finger"},{n:"Onslaught Girdle",q:"epic",s:"Taille, Platte"}]}
+  ],
+  route:[
+    "Lucifron, Magmadar, Gehennas, Garr – unterwegs die Runen löschen.",
+    "Shazzrah, Baron Geddon, Golemagg, Sulfuron.",
+    "Majordomo Executus nach dem Löschen aller sieben Runen.",
+    "Majordomo ruft Ragnaros in seinem Lavasee."
+  ],
+  quests:[
+    {name:"Attunement to the Core", side:"B", giver:"Lothos Riftwaker", loc:"Schwarzfels", obj:"Bring ein Core Fragment.", steps:["Das Fragment liegt in Schwarzfelstiefen beim Portal."], reward:"Direkter Zugang zum Kern"},
+    {name:"Aqual Quintessence", side:"B", xy:[79,73], giver:"Duke Hydraxis", loc:"Azshara, Insel im Osten", obj:"Ruf bei den Wasserlords erarbeiten.", steps:["Questreihe mit Elementaren in den Westlichen/Östlichen Pestländern und dem Kern.","Belohnung: Aqual Quintessence zum Löschen der Runen."], reward:"Aqual Quintessence"},
+    {name:"Thunderaan the Windseeker", side:"B", xy:[22,9], giver:"Highlord Demitrian", loc:"Silithus", obj:"Bring beide Bindings of the Windseeker.", steps:["Linke Hälfte von Garr, rechte von Baron Geddon.","Lange Questreihe zum Schwert Thunderfury."], reward:"Thunderfury, Blessed Blade of the Windseeker"}
+  ]
+},
+{
+  id:"ony", raid:true, size:40, name:"Onyxia's Lair", de:"Onyxias Hort", zone:"Düstermarschen", level:"60", min:60, faction:"N", xy:[52,76],
+  entrance:"Im Süden der Düstermarschen, in der Wyrmbog-Höhle. Für den Zutritt braucht man das Drakefire Amulet (Einstimmung).",
+  desc:"Die schwarze Drachin Onyxia in ihrem Hort. Bekannt für die drei Phasen und die gefürchteten Welpen.",
+  bosses:[
+    {name:"Onyxia", tag:"Schwarze Drachin", tactic:"Phase 1: Tank dreht sie zur Seite (Feueratem vorne, Schwanz hinten). Phase 2 (65 %): Sie fliegt, schießt Feuerbälle und bei Tiefem Atem quer durch die Höhle – seitlich ausweichen. Welpen aus den Seitenhöhlen töten. Phase 3 (40 %): Sie landet, Furcht und Erdspalten – Furchtschutz und Tremor-Totems.", drops:[{n:"Tier-2-Set: Kopf",q:"epic",s:"Set-Teil"},{n:"Head of Onyxia",q:"quest",s:"Startet eine Quest"},{n:"Vis'kag the Bloodletter",q:"epic",s:"Einhandschwert"},{n:"Deathbringer",q:"epic",s:"Einhandaxt"},{n:"Ring of Binding",q:"epic",s:"Finger"},{n:"Sapphiron Drape",q:"epic",s:"Rücken"},{n:"Shard of the Scale",q:"epic",s:"Schmuckstück"},{n:"Eskhandar's Collar",q:"epic",s:"Hals"}]}
+  ],
+  route:["Durch den Höhlengang (Wachen räumen) bis zur großen Halle.","Onyxia direkt; Welpen-Höhlen links und rechts im Blick behalten."],
+  quests:[
+    {name:"Victory for the Horde", side:"H", giver:"Head of Onyxia", loc:"Orgrimmar – Abgabe bei Thrall", obj:"Bring Onyxias Kopf zu Thrall.", steps:["Kopf droppt bei Onyxia."], reward:"Onyxia Tooth Pendant, Onyxia Blood Talisman oder Dragonslayer's Signet; Stadt-Buff"},
+    {name:"Victory for the Alliance", side:"A", giver:"Head of Onyxia", loc:"Sturmwind – Abgabe bei Highlord Bolvar Fordragon", obj:"Bring Onyxias Kopf nach Sturmwind.", steps:["Kopf droppt bei Onyxia."], reward:"Onyxia Tooth Pendant, Onyxia Blood Talisman oder Dragonslayer's Signet; Stadt-Buff"}
+  ]
+},
+{
+  id:"bwl", raid:true, size:40, name:"Blackwing Lair", de:"Pechschwingenhort", zone:"Schwarzfelsspitze", level:"60", min:60, faction:"N",
+  entrance:"Ganz oben in der Oberen Schwarzfelsspitze hinter General Drakkisath. Zugang über die Orb of Command (Blackhand's Command / Einstimmung).",
+  desc:"Hort von Nefarian, Sohn von Todesschwinge, mit seinen chromatischen Experimenten. Quelle der Tier-2-Rüstungen.",
+  bosses:[
+    {name:"Razorgore the Untamed", tag:"Drache", tactic:"Ein Spieler übernimmt Razorgore per Gedankenkontrolle und zerstört die Eier. Der Rest hält die Adds-Wellen. Danach Razorgore selbst töten.", drops:[{n:"Tier-2-Set: Handgelenke",q:"epic",s:"Set-Teil"}]},
+    {name:"Vaelastrasz the Corrupt", tag:"Roter Drache", tactic:"Brennendes Adrenalin: betroffene Spieler laufen vom Raid weg, bevor sie explodieren. Unendliches Mana für alle – voller Schaden.", drops:[{n:"Tier-2-Set: Taille",q:"epic",s:"Set-Teil"}]},
+    {name:"Broodlord Lashlayer", tag:"Drachkin", tactic:"Nach dem Unterdrückungsraum mit Fallen. Mehrere Tanks wegen Aggro-Reduktion.", drops:[{n:"Tier-2-Set: Füße",q:"epic",s:"Set-Teil"}]},
+    {name:"Firemaw / Ebonroc / Flamegor", tag:"Drei schwarze Drachen", tactic:"Tankwechsel wegen stapelnder Debuffs; Flügelschlag-Rückstoß.", drops:[{n:"Tier-2-Set: Hände",q:"epic",s:"Set-Teil"}]},
+    {name:"Chromaggus", tag:"Chromatischer Hund", tactic:"Zwei zufällige Atemangriffe, Mal der Brut: Bronze-Debuff mit Hourglass Sand entfernen. Hinter Säulen verstecken bei Atem.", drops:[{n:"Tier-2-Set: Schultern",q:"epic",s:"Set-Teil"},{n:"Chromatically Tempered Sword",q:"epic",s:"Einhandschwert"}]},
+    {name:"Nefarian", tag:"Endboss", tactic:"Phase 1: Lord Victor Nefarius ruft Drachkin-Adds. Phase 2: Nefarian landet; Klassenrufe verfluchen je eine Klasse. Phase 3 (20 %): Untote Drachkin erheben sich – mit Flächenschaden beseitigen.", drops:[{n:"Tier-2-Set: Brust",q:"epic",s:"Set-Teil"},{n:"Ashkandi, Greatsword of the Brotherhood",q:"epic",s:"Zweihandschwert"},{n:"Lok'amir il Romathis",q:"epic",s:"Einhandstreitkolben"},{n:"Head of Nefarian",q:"quest",s:"Startet eine Quest"}]}
+  ],
+  route:["Razorgore, Vaelastrasz, Unterdrückungsraum und Broodlord.","Drei Drachen, Chromaggus, Nefarian."],
+  quests:[
+    {name:"Lord Victor Nefarius", side:"H", giver:"Head of Nefarian", loc:"Orgrimmar – Abgabe bei Thrall", obj:"Bring Nefarians Kopf zu Thrall.", steps:["Kopf droppt bei Nefarian."], reward:"Master Dragonslayer's Medallion, Orb oder Ring"},
+    {name:"The Lord of Blackrock", side:"A", giver:"Head of Nefarian", loc:"Sturmwind – Abgabe bei Highlord Bolvar Fordragon", obj:"Bring Nefarians Kopf nach Sturmwind.", steps:["Kopf droppt bei Nefarian."], reward:"Master Dragonslayer's Medallion, Orb oder Ring"}
+  ]
+},
+{
+  id:"zg", raid:true, size:20, name:"Zul'Gurub", de:"Zul'Gurub", zone:"Schlingendorntal", level:"60", min:60, faction:"N", xy:[53,17],
+  entrance:"Im Nordosten des Schlingendorntals. Questgeber der Zandalar sitzen auf der Insel Yojamba im Westen.",
+  desc:"Die Hauptstadt der Gurubashi, in der der Blutgott Hakkar wiederkehren will. Schlachtzug für 20 Spieler, Ruf bei den Zandalar.",
+  bosses:[
+    {name:"High Priestess Jeklik", tag:"Fledermaus", tactic:"Fledermäuse mit Flächenschaden; heilt sich – unterbrechen.", drops:[]},
+    {name:"High Priest Venoxis", tag:"Schlange", tactic:"Giftwolken, Heilung unterbrechen. Schlangen-Adds zuerst.", drops:[]},
+    {name:"High Priestess Mar'li", tag:"Spinne", tactic:"Spinnen-Eier schlüpfen; Eier vorher töten oder schnell beseitigen.", drops:[]},
+    {name:"Bloodlord Mandokir", tag:"Raptor-Reiter", tactic:"Beobachtet einen Spieler – der darf sich dann nicht bewegen/handeln. Für jeden Toten wird er stärker; Geister beleben Spieler.", drops:[{n:"Swift Razzashi Raptor",q:"epic",s:"Reittier (selten)"}]},
+    {name:"High Priest Thekal", tag:"Tiger", tactic:"Drei Bosse (Thekal, Zath, Lor'Khan) müssen nahezu gleichzeitig sterben, sonst stehen sie wieder auf. Danach Tigerform.", drops:[{n:"Swift Zulian Tiger",q:"epic",s:"Reittier (selten)"}]},
+    {name:"High Priestess Arlokk", tag:"Panther", tactic:"Verschwindet und ruft Panther – Gruppe zusammen halten.", drops:[]},
+    {name:"Jin'do the Hexxer", tag:"Hexer", tactic:"Totems sofort zerstören (Heiltotem & Gehirnwäsche). Verfluchte Spieler sehen Schatten – nur diese töten sie.", drops:[]},
+    {name:"Hakkar", tag:"Endboss", tactic:"Spieler mit dem Gift der Blutsauger (Gift-Debuff von den Schlangen) stehen nah, damit Hakkar beim Blut-Absaugen geschwächt wird. Vorher möglichst viele Hohepriester töten (schwächt ihn).", drops:[{n:"Heart of Hakkar",q:"quest",s:"Startet eine Quest"}]}
+  ],
+  route:["Jeklik und Venoxis zu Beginn.","Mar'li, Mandokir, Thekal und Arlokk (Reihenfolge frei).","Jin'do, dann Hakkar im Tempel."],
+  quests:[
+    {name:"The Heart of Hakkar", side:"B", xy:[15,16], giver:"Molthor", loc:"Schlingendorntal, Insel Yojamba", obj:"Bring das Herz von Hakkar.", steps:["Hakkar besiegen und das Herz zu Molthor bringen.","Zandalar-Ruf: Münzen und Bijous aus dem ganzen Schlachtzug bei den Trollen auf Yojamba abgeben."], reward:"Zandalarian Hero Badge/Charm/Medallion; Buff für alle"},
+  ]
+},
+{
+  id:"aq20", raid:true, size:20, name:"Ruins of Ahn'Qiraj", de:"Ruinen von Ahn'Qiraj", zone:"Silithus", level:"60", min:60, faction:"N", xy:[28,92],
+  entrance:"Im Süden von Silithus hinter den Toren von Ahn'Qiraj (nach dem Öffnungsereignis).",
+  desc:"Die äußeren Ruinen der Qiraji-Festung. Ruf beim Zirkel des Cenarius.",
+  bosses:[
+    {name:"Kurinnaxx", tag:"Sandwurm", tactic:"Tödliche Wunde – Tankwechsel. Sandfallen meiden.", drops:[]},
+    {name:"General Rajaxx", tag:"Qiraji", tactic:"Mehrere Wellen von Qiraji, verteidigt von Lieutenant General Andorov. Andorov beschützen.", drops:[]},
+    {name:"Moam", tag:"Obsidian-Wesen", tactic:"Saugt Mana – Hexer/Jäger entziehen sein Mana. Wird bei 0 Energie zu Stein, Elementare kommen.", drops:[]},
+    {name:"Buru the Gorger", tag:"Riesenkäfer", tactic:"Verfolgt einen Spieler. Eier neben ihm zerstören, damit er Schaden nimmt.", drops:[]},
+    {name:"Ayamiss the Hunter", tag:"Wespe", tactic:"Fliegt zuerst in der Luft; nur Fernkampf. Larven fangen Spieler am Altar.", drops:[]},
+    {name:"Ossirian the Unscarred", tag:"Endboss", tactic:"Ihn zu den Kristallen ziehen, um die Schwäche zu wechseln. Ohne Kristall wird er übermächtig.", drops:[{n:"Head of Ossirian the Unscarred",q:"quest",s:"Startet eine Quest"}]}
+  ],
+  route:["Kurinnaxx, dann Rajaxx' Wellen.","Moam, Buru und Ayamiss (frei wählbar).","Ossirian."],
+  quests:[
+    {name:"The Fall of Ossirian", side:"B", xy:[49,34], giver:"Head of Ossirian", loc:"Silithus, Burg Cenarius – Abgabe bei Commander Mar'alith", obj:"Bring Ossirians Kopf.", steps:["Ossirian besiegen."], reward:"Wahl eines Halsbands"}
+  ]
+},
+{
+  id:"aq40", raid:true, size:40, name:"Temple of Ahn'Qiraj", de:"Tempel von Ahn'Qiraj", zone:"Silithus", level:"60", min:60, faction:"N", xy:[28,92],
+  entrance:"Im Süden von Silithus hinter den Toren von Ahn'Qiraj, links vom Eingang zu den Ruinen.",
+  desc:"Der Tempel des Alten Gottes C'Thun. Quelle der Tier-2,5-Ausrüstung.",
+  bosses:[
+    {name:"The Prophet Skeram", tag:"Qiraji", tactic:"Teilt sich in Abbilder; Gedankenkontrolle.", drops:[]},
+    {name:"Silithid Royalty (Bug Trio)", tag:"Drei Käfer", tactic:"Lord Kri, Princess Yauj und Vem; Reihenfolge entscheidet über den Nachkampf.", drops:[]},
+    {name:"Battleguard Sartura", tag:"Qiraji", tactic:"Wirbelwind, mit Wachen. Betäuben unterbrechen den Wirbelwind.", drops:[]},
+    {name:"Fankriss the Unyielding", tag:"Wurm", tactic:"Ruft Würmer; Tankwechsel.", drops:[]},
+    {name:"Viscidus", tag:"Schleim (optional)", tactic:"Mit Frostschaden einfrieren, dann zerschlagen und die kleinen Schleime töten.", drops:[]},
+    {name:"Princess Huhuran", tag:"Wespe", tactic:"Naturresistenz, Raserei mit Einlullender Schuss entfernen.", drops:[]},
+    {name:"Twin Emperors", tag:"Vek'lor & Vek'nilash", tactic:"Teleportieren sich; Vek'lor nur durch Nahkampf, Vek'nilash nur durch Zauber verwundbar. Hexenmeister tanken Vek'lor.", drops:[]},
+    {name:"Ouro", tag:"Sandwurm (optional)", tactic:"Taucht ab und wieder auf; aus dem Weg laufen.", drops:[]},
+    {name:"C'Thun", tag:"Endboss", tactic:"Phase 1: Augenstrahl springt – verteilt stehen. Phase 2: Spieler werden verschluckt und töten im Magen die Tentakel. Der ganze Schlachtzug muss gut koordiniert sein.", drops:[{n:"Eye of C'Thun",q:"quest",s:"Startet eine Quest"},{n:"Dark Edge of Insanity",q:"epic",s:"Zweihandaxt"}]}
+  ],
+  route:["Skeram, Bug Trio, Sartura, Fankriss.","Optional Viscidus, dann Huhuran.","Twin Emperors, optional Ouro, C'Thun."],
+  quests:[
+    {name:"C'Thun's Legacy", side:"B", giver:"Eye of C'Thun", loc:"Abgabe bei Caelastrasz im Tempel", obj:"Bring das Auge von C'Thun.", steps:["C'Thun besiegen."], reward:"Wahl eines Halsbands/Rings"}
+  ]
+},
+{
+  id:"naxx", raid:true, size:40, name:"Naxxramas", de:"Naxxramas", zone:"Östliche Pestländer", level:"60", min:60, faction:"N", xy:[39,26],
+  entrance:"Die schwebende Nekropole über den Östlichen Pestländern. Zugang über den Teleporter in der Kapelle des Hoffnungsvollen Lichts (Einstimmung beim Argentumdämmerung-Ruf).",
+  desc:"Festung von Kel'Thuzad. Vier Flügel (Spinnen, Seuchen, Militär, Konstrukte) plus Frostwyrm-Hort. Quelle der Tier-3-Rüstung.",
+  bosses:[
+    {name:"Anub'Rekhan / Faerlina / Maexxna", tag:"Spinnenflügel", tactic:"Maexxna wickelt Spieler in Netze an der Wand – diese freischießen. Faerlinas Raserei durch Verehrer-Opfer entfernen.", drops:[]},
+    {name:"Noth / Heigan / Loatheb", tag:"Seuchenflügel", tactic:"Heigan: Der Tanz – im Takt durch den Raum laufen. Loatheb: Heilung nur alle paar Sekunden möglich, Sporen nutzen.", drops:[]},
+    {name:"Razuvious / Gothik / Four Horsemen", tag:"Militärflügel", tactic:"Razuvious mit Gedankenkontrolle der Lehrlinge tanken. Four Horsemen: Tanks rotieren an den Ecken.", drops:[]},
+    {name:"Patchwerk / Grobbulus / Gluth / Thaddius", tag:"Konstruktflügel", tactic:"Patchwerk: reiner DPS-Check. Thaddius: Polaritätswechsel – Plus und Minus auf getrennte Seiten.", drops:[]},
+    {name:"Sapphiron", tag:"Frostwyrm", tactic:"Frostresistenz nötig. In der Luftphase hinter Eisblöcken verstecken.", drops:[]},
+    {name:"Kel'Thuzad", tag:"Endboss", tactic:"Phase 1: Adds abwehren. Phase 2: Gedankenkontrolle, Frostblitze unterbrechen, Leeren Zonen ausweichen. Phase 3: Wachen der Eiskrone.", drops:[{n:"Phylactery of Kel'Thuzad",q:"quest",s:"Startet eine Quest"},{n:"Splinter of Atiesh",q:"legendary",s:"Material (Atiesh)"}]}
+  ],
+  route:["Die vier Flügel in beliebiger Reihenfolge.","Danach Sapphiron und Kel'Thuzad im Frostwyrm-Hort."],
+  quests:[
+    {name:"The Fall of Kel'Thuzad", side:"B", xy:[81,58], giver:"Phylactery of Kel'Thuzad", loc:"Östliche Pestländer, Kapelle des Hoffnungsvollen Lichts", obj:"Bring das Phylakterium.", steps:["Kel'Thuzad besiegen."], reward:"Wahl eines Rings"},
+    {name:"The Dread Citadel – Naxxramas", side:"B", xy:[81,58], giver:"Archmage Angela Dosantos", loc:"Östliche Pestländer, Kapelle des Hoffnungsvollen Lichts", obj:"Einstimmung auf Naxxramas.", steps:["Abhängig vom Argentumdämmerung-Ruf: wohlwollend, respektvoll oder ehrfürchtig (Kosten sinken)."], reward:"Zugang zu Naxxramas"}
+  ]
+}
+);
 
 const MONSTERS = [
   {name:"Azuregos", type:"Weltboss", zone:"Azshara", level:"??", desc:"Blauer Drache, der in Azshara umherwandert.", tactic:"Teleportiert alle Spieler in Reichweite zu sich (Positionen danach neu einnehmen). Magiereflexion – Zauberer achten auf den Schild. Raid-Begegnung (40 Spieler).", drops:[{n:"Typhoon",q:"epic",s:"Zweihandschwert"},{n:"Snowblind Shoes",q:"epic",s:"Füße, Stoff"},{n:"Mature Blue Dragon Sinew",q:"epic",s:"Material"}]},
@@ -683,6 +1019,24 @@ function itemHTML(i, src){
     <div class="slot q-${i.q}">${SLOT_ICON(i.s)}</div>
     <div><div class="nm q-${i.q}">${esc(i.n)}</div><div class="ty">${esc(i.s)}</div></div></div>`;
 }
+function questXY(q){
+  if(!q.xy) return null;
+  if(Array.isArray(q.xy)) return q.xy;
+  return q.xy[myside()] || q.xy.A || q.xy.H || null;
+}
+function miniMap(xy, label){
+  if(!xy) return "";
+  const [x,y]=xy, X=x*1.5, Y=y;
+  let grid=""; for(let i=1;i<10;i++) grid+=`<line x1="${i*15}" y1="0" x2="${i*15}" y2="100"/><line x1="0" y1="${i*10}" x2="150" y2="${i*10}"/>`;
+  return `<div class="minimap"><svg viewBox="0 0 150 100" role="img" aria-label="Karte ${esc(label)} ${x}, ${y}">
+    <g stroke="rgba(90,55,15,.22)" stroke-width=".6">${grid}</g>
+    <line x1="${X}" y1="0" x2="${X}" y2="100" stroke="rgba(150,30,10,.35)" stroke-dasharray="2 2"/>
+    <line x1="0" y1="${Y}" x2="150" y2="${Y}" stroke="rgba(150,30,10,.35)" stroke-dasharray="2 2"/>
+    <circle cx="${X}" cy="${Y}" r="7" fill="rgba(200,30,10,.25)"/>
+    <path d="M${X} ${Y} l-4 -9 a4.5 4.5 0 1 1 8 0 z" fill="#c8231b" stroke="#3f1503" stroke-width="1"/>
+    <circle cx="${X}" cy="${Y-10}" r="1.8" fill="#fff1b8"/></svg>
+    ${esc(label)} · ca. ${x}, ${y}</div>`;
+}
 function chipSide(s){ const [t,c]=SIDE[s]; return `<span class="chip ${c}">${t}</span>`; }
 
 /* ===================== Linke Liste ===================== */
@@ -702,21 +1056,27 @@ function renderFilters(){
 function renderList(){
   const L = $("#list"); let h = "";
   if(state.tab==="dungeons"){
-    const ds = DUNGEONS.filter(d=>match(d.name,d.de,d.zone,d.bosses.map(b=>b.name+" "+b.drops.map(x=>x.n).join(" ")).join(" "),d.quests.map(q=>q.name).join(" ")));
-    ds.forEach(d=>{
-      const own = d.faction==="N" || d.faction===myside();
-      h += `<button class="entry ${state.sel===d.id?"on":""}" data-d="${d.id}" style="${own?"":"opacity:.62"}">
-        <div class="ico">${d.name.replace(/^The /,"").split(/[\s']/).map(w=>w[0]).join("").slice(0,2)}</div>
-        <div class="t"><b>${esc(d.de)}</b><span>${esc(d.zone)}</span></div><span class="lvl">${d.level}</span></button>`;
+    const ds = DUNGEONS.filter(d=>match(d.name,d.de,d.zone,d.bosses.map(b=>b.name+" "+b.drops.map(x=>x.n).join(" ")).join(" "),d.quests.map(q=>q.name).join(" ")))
+      .sort((a,b)=>a.min-b.min);
+    [["Dungeons",ds.filter(d=>!d.raid)],["Schlachtzüge",ds.filter(d=>d.raid)]].forEach(([title,arr])=>{
+      if(!arr.length) return;
+      h += `<div class="list-head">${title}</div>`;
+      arr.forEach(d=>{
+        const own = d.faction==="N" || d.faction===myside();
+        const abbr = d.de.replace(/^(Der|Die|Das) /,"").split(/[\s'-]+/).filter(w=>/^[A-ZÄÖÜ]/.test(w)).map(w=>w[0]).join("").slice(0,2) || d.de[0];
+        h += `<button class="entry ${state.sel===d.id?"on":""}" data-d="${d.id}" style="${own?"":"opacity:.62"}">
+          <div class="ico">${abbr}</div>
+          <div class="t"><b>${esc(d.de)}</b><span>${esc(d.zone)}</span></div><span class="lvl">${d.raid?d.size+"er":d.level}</span></button>`;
+      });
     });
     if(!ds.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
   }
   if(state.tab==="quests"){
     let any=false;
-    DUNGEONS.forEach(d=>{
+    [...DUNGEONS].sort((a,b)=>(a.raid?1:0)-(b.raid?1:0) || a.min-b.min).forEach(d=>{
       const qs = d.quests.filter(q=>questVisible(q) && match(q.name,q.giver,q.loc,q.obj,d.name,d.de));
       if(!qs.length) return; any=true;
-      h += `<div class="list-head">${esc(d.de)} · ${d.level}</div>`;
+      h += `<div class="list-head">${esc(d.de)} · ${d.raid?"Schlachtzug":d.level}</div>`;
       qs.forEach(q=>{ h += `<button class="entry" data-d="${d.id}" data-inner="quests" data-q="${esc(q.name)}">
         <div class="ico" style="color:#ffd100">!</div><div class="t"><b>${esc(q.name)}</b><span>${esc(q.giver)}</span></div>${chipSide(q.side)}</button>`; });
     });
@@ -727,7 +1087,7 @@ function renderList(){
     const groups = [...new Set(ms.map(m=>m.type))];
     groups.forEach(g=>{
       h += `<div class="list-head">${g}</div>`;
-      ms.filter(m=>m.type===g).forEach(m=>{ h += `<button class="entry ${state.sel==="m"+m.i?"on":""}" data-m="${m.i}">
+      ms.filter(m=>m.type===g).forEach(m=>{ h += `<button class="entry ${state.sel==="mon:"+m.i?"on":""}" data-m="${m.i}">
         <svg class="ico" style="padding:2px"><use href="#sym-skull"/></svg><div class="t"><b>${esc(m.name)}</b><span>${esc(m.zone)}</span></div><span class="lvl">${m.level}</span></button>`; });
     });
     if(!ms.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
@@ -754,14 +1114,15 @@ function renderWelcome(){
     <p class="muted">Wähle links einen Dungeon, eine Quest, ein Monster oder einen Gegenstand.<br>
     Quests werden für die ${fac?"Horde":"Allianz"} gefiltert – oben rechts kannst du die Fraktion wechseln.</p>
     <div class="stat-row">
-      <div class="stat"><b>${DUNGEONS.length}</b>Dungeons</div>
+      <div class="stat"><b>${DUNGEONS.filter(d=>!d.raid).length}</b>Dungeons</div>
+      <div class="stat"><b>${DUNGEONS.filter(d=>d.raid).length}</b>Schlachtzüge</div>
       <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.bosses.length,0)}</b>Bosse</div>
       <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.quests.filter(q=>q.side==="B"||q.side===myside()).length,0)}</b>${fac?"Horde":"Allianz"}-Quests</div>
       <div class="stat"><b>${ALL_ITEMS.length}</b>Gegenstände</div>
     </div>
     <div class="box" style="text-align:left;max-width:640px;margin:0 auto">
       <h4>Empfohlene Reihenfolge (${fac?"Horde":"Allianz"})</h4>
-      ${DUNGEONS.filter(d=>d.faction==="N"||d.faction===myside()).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.level})</span>`).join(" → ")}
+      ${DUNGEONS.filter(d=>!d.raid&&(d.faction==="N"||d.faction===myside())).sort((a,b)=>a.min-b.min).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.level})</span>`).join(" → ")}
     </div></div>`;
 }
 
@@ -780,19 +1141,19 @@ function renderDungeon(d){
       </div></details>`).join("");
   }
   if(state.inner==="quests"){
-    body = quests.map(q=>`<div class="quest" data-qname="${esc(q.name)}">
+    body = quests.map(q=>{ const xy=questXY(q); return `<div class="quest" data-qname="${esc(q.name)}">
       <h3>${esc(q.name)} ${chipSide(q.side)}</h3>
-      <dl class="qgrid">
+      <div class="mapwrap"><div><dl class="qgrid">
         <dt>Questgeber</dt><dd>${esc(q.giver)}</dd>
-        <dt>Fundort</dt><dd>${esc(q.loc)}</dd>
+        <dt>Fundort</dt><dd>${esc(q.loc)}${xy?`<span class="coord">${xy[0]}, ${xy[1]}</span>`:""}</dd>
         <dt>Ziel</dt><dd>${esc(q.obj)}</dd>
         <dt>Vorgehen</dt><dd><ol class="steps">${q.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></dd>
         <dt>Belohnung</dt><dd>${esc(q.reward)}</dd>
-      </dl></div>`).join("") || `<p class="muted">Für deine Fraktion gibt es hier keine Quests.</p>`;
+      </dl></div>${miniMap(xy, q.loc.split(/[,–(]/)[0].trim())}</div></div>`; }).join("") || `<p class="muted">Für deine Fraktion gibt es hier keine Quests.</p>`;
     if(hiddenQ && !state.showAll) body += `<p class="hidden-note">${hiddenQ} Quest(s) der anderen Fraktion ausgeblendet. <button class="link" id="showOther">Anzeigen</button></p>`;
   }
   if(state.inner==="route"){
-    body = `<div class="box"><h4>Weg zum Eingang</h4>${esc(d.entrance)}</div>
+    body = `<div class="box mapwrap"><div><h4>Weg zum Eingang</h4>${esc(d.entrance)}</div>${miniMap(d.xy, d.zone)}</div>
       <h3 class="sec-title">Ablauf im Dungeon</h3>
       <ol class="steps" style="font-size:17px">${d.route.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`;
   }
@@ -800,10 +1161,10 @@ function renderDungeon(d){
   $("#detail").innerHTML = `
     <div class="d-head"><div style="flex:1;min-width:220px">
       <h2>${esc(d.de)}</h2><div class="sub">${esc(d.name)} · ${esc(d.zone)}</div>
-      <div class="chips"><span class="chip">Stufe ${d.level}</span>${facChip}<span class="chip">${d.bosses.length} Bosse</span></div>
+      <div class="chips"><span class="chip">Stufe ${d.level}</span>${d.raid?`<span class="chip h" style="background:#5b2a8a;border-color:#2c1046">Schlachtzug · ${d.size} Spieler</span>`:""}${facChip}<span class="chip">${d.bosses.length} Bosse</span></div>
     </div></div>
     <p>${esc(d.desc)}</p>
-    <div class="box"><h4>Fundort / Eingang</h4>${esc(d.entrance)}</div>
+    <div class="box mapwrap"><div><h4>Fundort / Eingang ${d.xy?`<span class="coord">${d.xy[0]}, ${d.xy[1]}</span>`:""}</h4>${esc(d.entrance)}</div>${miniMap(d.xy, d.zone)}</div>
     <div class="inner-tabs">${tabs.map(([k,t])=>`<button class="tab ${state.inner===k?"on":""}" data-inner-tab="${k}">${t}</button>`).join("")}</div>
     ${body}`;
   const so = $("#showOther"); if(so) so.onclick = () => { state.showAll = true; save(); render(); };
@@ -822,7 +1183,7 @@ function renderMonster(m){
 
 function renderDetail(){
   if(!state.sel) return renderWelcome();
-  if(state.sel.startsWith("m")) return renderMonster(MONSTERS[+state.sel.slice(1)]);
+  if(state.sel.startsWith("mon:")) return renderMonster(MONSTERS[+state.sel.slice(4)]);
   const d = DUNGEONS.find(x=>x.id===state.sel); if(d) renderDungeon(d); else renderWelcome();
 }
 
@@ -848,7 +1209,7 @@ document.addEventListener("click", e=>{
   if(it){ state.inner = it.dataset.innerTab; renderDetail(); return; }
   const en = e.target.closest("[data-d],[data-m]");
   if(!en || en.closest(".item")) return;
-  if(en.dataset.m!==undefined){ state.sel = "m"+en.dataset.m; }
+  if(en.dataset.m!==undefined){ state.sel = "mon:"+en.dataset.m; }
   else {
     state.sel = en.dataset.d;
     state.inner = en.dataset.inner || "bosses";
