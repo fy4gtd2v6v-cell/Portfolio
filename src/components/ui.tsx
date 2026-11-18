@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmtEur, fmtPct, fmtSignedEur } from '../lib/format';
+import { depotBadge } from '../lib/depotBadge';
+import { NO_DEPOT } from '../lib/portfolio';
 import { AssetClass, Category } from '../lib/types';
 
 export const CATEGORY_COLOR: Record<Category, string> = {
@@ -144,6 +146,20 @@ export function useDepotFolding(collapsed: string[] | undefined, setCollapsed: (
 }
 
 /** Clickable header of a depot group with its totals. */
+/** Round monogram badge of a depot provider (self-drawn, no trademarked artwork). */
+export function DepotBadge({ depot, size = 32 }: { depot: string; size?: number }) {
+  if (depot === NO_DEPOT) {
+    return <span className="depot-badge none" style={{ width: size, height: size }} aria-hidden="true">–</span>;
+  }
+  const b = depotBadge(depot);
+  return (
+    <span className={`depot-badge ${b.ring ? 'ring' : ''}`} aria-hidden="true"
+      style={{ width: size, height: size, background: b.bg, color: b.fg, fontSize: size * (b.text.length > 2 ? 0.32 : 0.4) }}>
+      {b.text}
+    </span>
+  );
+}
+
 export function DepotHeader({ depot, count, value, gain, cost, open, onToggle, as = 'div' }: {
   depot: string;
   count: number;
@@ -158,6 +174,7 @@ export function DepotHeader({ depot, count, value, gain, cost, open, onToggle, a
   const content = (
     <button type="button" className="depot-header" aria-expanded={open} onClick={onToggle}>
       <span className={`chevron ${open ? 'open' : ''}`} aria-hidden="true">▸</span>
+      <DepotBadge depot={depot} size={36} />
       <span className="depot-name">{depot}</span>
       <span className="muted small depot-count">{count} Position{count === 1 ? '' : 'en'}</span>
       <span className="depot-value">{fmtEur(value)}</span>
