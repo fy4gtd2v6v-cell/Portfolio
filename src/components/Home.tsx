@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Donut, Slice } from './Donut';
 import { Hero } from './Hero';
 import { HistoryChart } from './HistoryChart';
-import { CategoryIcon, CATEGORY_COLOR, Icon } from './ui';
+import { CategoryIcon, CATEGORY_COLOR, DepotBadge, Icon } from './ui';
 import { groupByDepot, summarize, valueHolding } from '../lib/portfolio';
 import { fmtEur, fmtSignedEur } from '../lib/format';
 import { CATEGORIES, Category, CATEGORY_LABEL, categoryOf, PortfolioState } from '../lib/types';
@@ -124,13 +124,14 @@ export function Home({ state, onGoto, onAdd, onOpenCategory, onOpenHolding, onOp
                   const part = s.totalValue > 0 ? d.value / s.totalValue : 0;
                   return (
                     <button type="button" key={d.depot} className="depot-row" onClick={() => onOpenDepot(d.depot)} title={`Positionen im Depot ${d.depot} anzeigen`}>
-                      <span>
+                      <DepotBadge depot={d.depot} size={34} />
+                      <span className="depot-row-name">
                         <strong>{d.depot}</strong>
-                        <span className="muted"> · {d.count} Position{d.count === 1 ? '' : 'en'}</span>
+                        <span className="muted">{d.count} Position{d.count === 1 ? '' : 'en'} · {share.format(part)}</span>
                       </span>
-                      <span className="num">
-                        <strong>{fmtEur(d.value)}</strong> <span className="muted">· {share.format(part)}</span>
-                        {d.cost > 0 && <span className={`small ${d.gain > 0.005 ? 'pos' : d.gain < -0.005 ? 'neg' : 'muted'}`}> · {fmtSignedEur(d.gain)}</span>}
+                      <span className="num depot-row-value">
+                        <strong>{fmtEur(d.value)}</strong>
+                        {d.cost > 0 && <span className={`small ${d.gain > 0.005 ? 'pos' : d.gain < -0.005 ? 'neg' : 'muted'}`}>{fmtSignedEur(d.gain)}</span>}
                       </span>
                       <span className="bar-track"><span className="bar-fill" style={{ width: `${part * 100}%` }} /></span>
                     </button>

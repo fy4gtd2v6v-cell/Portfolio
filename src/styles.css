@@ -293,7 +293,7 @@ main .banner { margin-bottom: 0; display: block; }
 .bar-value { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 
 /* ---------- tables ---------- */
-.table-wrap { overflow-x: auto; margin: 0 -8px; padding: 0 8px; }
+.table-wrap { overflow-x: auto; margin: 0 -8px; padding: 0 8px; container-type: inline-size; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 11px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 tbody tr:last-child td { border-bottom: none; }
@@ -593,13 +593,22 @@ button.donut-legend-row:hover:not(:disabled), .donut-legend-row.active { backgro
 /* ---------- depot groups ---------- */
 .depot-group { display: flex; flex-direction: column; gap: 12px; }
 button.depot-header {
-  display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "chev name value" "chev count gain";
+  display: grid; grid-template-columns: auto auto 1fr auto; grid-template-areas: "chev badge name value" "chev badge count gain";
   align-items: center; gap: 0 12px; width: 100%; text-align: left; font-weight: 400;
   padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow);
 }
 button.depot-header:hover:not(:disabled) { background: var(--brand-soft); }
 .depot-header .chevron { grid-area: chev; display: inline-block; transform: rotate(0deg); transition: transform .15s; color: var(--brand); font-size: 14px; }
 .depot-header .chevron.open { transform: rotate(90deg); }
+.depot-header .depot-badge { grid-area: badge; }
+.depot-badge {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  font-weight: 750; letter-spacing: -.02em; line-height: 1; font-family: inherit;
+}
+.depot-badge.ring { box-shadow: 0 0 0 1px rgb(255 255 255 / .22), 0 0 0 1px var(--border) inset; }
+.depot-badge.none { background: var(--surface-2); color: var(--text-2); border: 1px dashed var(--border); font-size: 15px; }
+.depot-row-name, .depot-row-value { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.depot-row-value { align-items: flex-end; }
 .depot-name { grid-area: name; font-weight: 650; font-size: 17px; }
 .depot-count { grid-area: count; }
 .depot-value { grid-area: value; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -607,10 +616,10 @@ button.depot-header:hover:not(:disabled) { background: var(--brand-soft); }
 .depot-items { display: flex; flex-direction: column; gap: 12px; padding-left: 14px; border-left: 2px solid var(--border); margin-left: 8px; }
 .fold-all { display: flex; gap: 8px; flex-basis: 100%; }
 td.depot-cell { padding: 14px 0 6px; border-bottom: none; }
-td.depot-cell button.depot-header { box-shadow: none; background: var(--surface-2); }
+td.depot-cell button.depot-header { box-shadow: none; background: var(--surface-2); position: sticky; left: 0; width: 100cqw; }
 tbody.depot-tbody tr:hover { background: none; }
 .depot-list { display: flex; flex-direction: column; gap: 4px; }
-button.depot-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; width: 100%; text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 10px; font-weight: 400; }
+button.depot-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; width: 100%; text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 10px; font-weight: 400; }
 button.depot-row:hover:not(:disabled) { background: var(--brand-soft); }
 .depot-row .bar-track { grid-column: 1 / -1; height: 6px; display: block; }
 .depot-row .bar-fill { display: block; background: var(--brand); border-radius: 6px; }
