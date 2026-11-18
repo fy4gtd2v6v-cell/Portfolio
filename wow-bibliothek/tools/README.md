@@ -20,6 +20,7 @@ python3 build_dungeons.py questiedb-src db/dungeons.json    # Dungeon-Eingänge
 # 3. Abgleichen und zurückschreiben
 node extract.cjs db/mine.json        # aktuelle Daten aus index.html
 python3 enrich.py $W                 # -> db/enriched.json + db/report.md
+python3 build_maps.py $W             # -> db/maps.json (eigene Zonenkarten)
 python3 inject.py $W                 # -> index.html
 ```
 

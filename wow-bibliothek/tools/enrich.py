@@ -30,6 +30,11 @@ for w in wci_new:
 wci = wci_classic
 
 Q, N, I = db['quest']['data'], db['npc']['data'], db['item']['data']
+# Dropchancen aus der QuestieDB-Drop-Tabelle (Wowhead-Werte) als Ergänzung
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from luaparse import parse_assignment
+_dt_path = f'{D}/questiedb-src/support/Forever/DropTables/classicItemDrops.lua'
+DROPTABLE = parse_assignment(open(_dt_path, encoding='utf-8').read(), 'QuestieClassicItemDrops.wowheadData') if os.path.exists(_dt_path) else {}
 deQ, deN, deI = db['deQuest'], db['deNpc'], db['deItem']
 report = defaultdict(list)
 def rep(sec, msg): report[sec].append(msg)
@@ -290,6 +295,11 @@ def boss_drops(npc_ids, names, keep_manual):
         else:
             rep('Drops korrigiert', f"{CUR[0]} – {CUR[1]}: Platzhalter „{o}“ → durch echte Gegenstände ersetzt")
     order = {'legendary': 0, 'epic': 1, 'rare': 2, 'uncommon': 3, 'common': 4, 'poor': 5, 'quest': 6}
+    for e in found.values():
+        if e and not e.get('c'):
+            r = DROPTABLE.get(e['id']) or {}
+            ch = [float(v) for k, v in r.items() if int(k) in set(npc_ids)]
+            if ch: e['c'] = round(max(ch), 1)
     out, seen = [], set()
     for e in sorted([e for e in found.values() if e], key=lambda e: (order.get(e['q'], 9), e['n'])):
         if norm(e['n']) in seen: continue
@@ -309,8 +319,8 @@ for d in mine['DUNGEONS']:
     if e:
         locs = e[3]
         pz = locs[0][0]; d['xy'] = [round(locs[0][1]), round(locs[0][2])]
-        d['xyZone'] = zname(pz)[1]
-        if len(locs) > 1: d['xy2'] = {'zone': zname(locs[1][0])[1], 'xy': [round(locs[1][1]), round(locs[1][2])]}
+        d['xyZone'] = zname(pz)[1]; d['xyZid'] = pz
+        if len(locs) > 1: d['xy2'] = {'zone': zname(locs[1][0])[1], 'zid': locs[1][0], 'xy': [round(locs[1][1]), round(locs[1][2])]}
     for b in d['bosses']:
         names = ALIAS.get(b['name'], [b['name']])
         infos = []
@@ -362,6 +372,7 @@ for d in mine['DUNGEONS']:
                     if zd in ('Östliche Königreiche', 'Kalimdor'): zd, xy = 'Der Schwarzfels' if d['id'] in ('brd', 'brs', 'mc', 'bwl') else zd, None
                     if not zz and ni[8] in DUNGEON_ZONE.values(): zd = f'im Dungeon ({zd})'
                     giver = {'en': ni[0], 'de': (deN.get(str(nid)) or [ni[0]])[0] or ni[0], 'zone': zd, 'xy': xy}
+                    if xy: giver['zid'] = zz
             if not giver and len(sb) > 2 and sb[2]:
                 it = I.get(str(sb[2][0]))
                 giver = {'en': it[0] if it else '?', 'de': deI.get(str(sb[2][0])) or (it[0] if it else '?'), 'zone': 'Startet durch Gegenstand', 'xy': None, 'item': True}

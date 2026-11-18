@@ -37,19 +37,91 @@ function itemHTML(i){
     <div style="min-width:0"><div class="nm q-${i.q}">${esc(i.de||i.n)}</div>
     <div class="ty">${i.de && i.de!==i.n?`<i>${esc(i.n)}</i> · `:""}${esc(i.s)}${i.c?` · ${String(i.c).replace(".",",")} %`:""}${i.v===0?` · <span title="Quelle in den Datenbanken nicht belegt">⚠</span>`:""}</div></div></div>`;
 }
-function miniMap(xy, label){
+function miniMap(xy, label, zid){
   if(!xy) return "";
-  const [x,y]=xy, X=x*1.5, Y=y;
+  const [x,y]=xy;
+  if(zid && typeof MAPS!=="undefined" && MAPS[zid]){
+    return `<button type="button" class="minimap" data-map="${zid}" data-x="${x}" data-y="${y}" title="Karte vergrößern">
+      <canvas width="300" height="200" aria-label="Karte ${esc(label)}, Position ${x}, ${y}"></canvas>
+      <span>${esc(label)} · ${x}, ${y} <b aria-hidden="true">⤢</b></span></button>`;
+  }
+  const X=x*1.5, Y=y;
   let grid=""; for(let i=1;i<10;i++) grid+=`<line x1="${i*15}" y1="0" x2="${i*15}" y2="100"/><line x1="0" y1="${i*10}" x2="150" y2="${i*10}"/>`;
   return `<div class="minimap"><svg viewBox="0 0 150 100" role="img" aria-label="Karte ${esc(label)} ${x}, ${y}">
     <g stroke="rgba(90,55,15,.22)" stroke-width=".6">${grid}</g>
-    <line x1="${X}" y1="0" x2="${X}" y2="100" stroke="rgba(150,30,10,.35)" stroke-dasharray="2 2"/>
-    <line x1="0" y1="${Y}" x2="150" y2="${Y}" stroke="rgba(150,30,10,.35)" stroke-dasharray="2 2"/>
-    <circle cx="${X}" cy="${Y}" r="7" fill="rgba(200,30,10,.25)"/>
-    <path d="M${X} ${Y} l-4 -9 a4.5 4.5 0 1 1 8 0 z" fill="#c8231b" stroke="#3f1503" stroke-width="1"/>
-    <circle cx="${X}" cy="${Y-10}" r="1.8" fill="#fff1b8"/></svg>
+    <path d="M${X} ${Y} l-4 -9 a4.5 4.5 0 1 1 8 0 z" fill="#c8231b" stroke="#3f1503" stroke-width="1"/></svg>
     ${esc(label)} · ${x}, ${y}</div>`;
 }
+
+/* ===================== Zonenkarten =====================
+   Eigene Karten aus den Spawn-Positionen aller NPCs und Objekte (QuestieDB).
+   Helle Flächen = erschlossenes Gebiet, dunkle Flecken = Siedlungen, Lager, Wege. */
+const MW=75, MH=50, CH="0123456789abcdefghijklmnopqrstuvwxyz";
+const mapCache = {};
+function mapLayers(zid){
+  if(mapCache[zid]) return mapCache[zid];
+  const g = MAPS[zid].g, v = new Uint8Array(MW*MH);
+  for(let i=0;i<v.length;i++) v[i]=CH.indexOf(g[i]);
+  const land = document.createElement("canvas"), dens = document.createElement("canvas");
+  land.width=dens.width=MW; land.height=dens.height=MH;
+  const L=land.getContext("2d").createImageData(MW,MH), Dd=dens.getContext("2d").createImageData(MW,MH);
+  for(let y=0;y<MH;y++) for(let x=0;x<MW;x++){
+    const i=y*MW+x; let near=0;
+    for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ const xx=x+dx, yy=y+dy; if(xx>=0&&yy>=0&&xx<MW&&yy<MH&&v[yy*MW+xx]) near++; }
+    const a = Math.min(255, near*34);
+    L.data.set([238,222,182,a], i*4);
+    let sum=0, w=0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const xx=x+dx, yy=y+dy; if(xx>=0&&yy>=0&&xx<MW&&yy<MH){ const f=(dx||dy)?1:2; sum+=v[yy*MW+xx]*f; w+=f; } }
+    const d = sum/w; Dd.data.set([105,62,24, d ? Math.min(220, 18+d*7) : 0], i*4);
+  }
+  land.getContext("2d").putImageData(L,0,0); dens.getContext("2d").putImageData(Dd,0,0);
+  return mapCache[zid] = {land, dens};
+}
+function paintMap(cv, zid, px, py, big){
+  const m = MAPS[zid], c = cv.getContext("2d"), W = cv.width, H = cv.height, k = W/100, kh = H/100;
+  const bg = c.createLinearGradient(0,0,W,H); bg.addColorStop(0,"#c9ab72"); bg.addColorStop(1,"#b8975c");
+  c.fillStyle = bg; c.fillRect(0,0,W,H);
+  const {land, dens} = mapLayers(zid);
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+  c.drawImage(land,0,0,W,H); c.drawImage(land,0,0,W,H);
+  c.drawImage(dens,0,0,W,H);
+  c.strokeStyle="rgba(80,50,15,.13)"; c.lineWidth=1;
+  for(let i=1;i<10;i++){ c.beginPath(); c.moveTo(i*W/10,0); c.lineTo(i*W/10,H); c.moveTo(0,i*H/10); c.lineTo(W,i*H/10); c.stroke(); }
+  const fs = big ? 15 : 11;
+  c.font = `${fs}px Georgia, serif`; c.textAlign="center"; c.textBaseline="middle";
+  const fac = myside();
+  (m.f||[]).filter(f=>!f[2] || f[2].includes(fac)).forEach(f=>{
+    const x=f[0]*k, y=f[1]*kh; c.fillStyle = fac==="H" ? "#7d1612" : "#1d4592";
+    c.beginPath(); c.arc(x,y,fs*.75,0,7); c.fill(); c.fillStyle="#fff1b8"; c.fillText("✈",x,y+1);
+  });
+  (m.d||[]).forEach(d=>{
+    const x=d[0]*k, y=d[1]*kh; c.fillStyle="#2b1a0b";
+    c.beginPath(); c.moveTo(x,y-fs*.7); c.lineTo(x+fs*.6,y); c.lineTo(x,y+fs*.7); c.lineTo(x-fs*.6,y); c.closePath(); c.fill();
+    c.fillStyle="#f8d16a"; c.beginPath(); c.arc(x,y,fs*.22,0,7); c.fill();
+    if(big){ c.fillStyle="#2b1a0b"; c.font=`bold 13px Georgia, serif`; c.fillText(d[2], x, y-fs-2); c.font=`${fs}px Georgia, serif`; }
+  });
+  const x=px*k, y=py*kh, r = big ? 11 : 8;
+  c.strokeStyle="rgba(200,30,10,.45)"; c.setLineDash([4,4]); c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(x,0); c.lineTo(x,H); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); c.setLineDash([]);
+  c.fillStyle="rgba(200,30,10,.25)"; c.beginPath(); c.arc(x,y,r*1.6,0,7); c.fill();
+  c.fillStyle="#c8231b"; c.strokeStyle="#3f1503"; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(x,y); c.bezierCurveTo(x-r*1.1,y-r*1.4,x-r,y-r*2.6,x,y-r*2.6); c.bezierCurveTo(x+r,y-r*2.6,x+r*1.1,y-r*1.4,x,y); c.fill(); c.stroke();
+  c.fillStyle="#fff1b8"; c.beginPath(); c.arc(x,y-r*1.75,r*.35,0,7); c.fill();
+  c.strokeStyle="#6b4c1d"; c.lineWidth=big?4:3; c.strokeRect(0,0,W,H);
+}
+function paintAllMaps(root=document){
+  if(typeof MAPS==="undefined") return;
+  root.querySelectorAll("[data-map] canvas").forEach(cv=>{ const b=cv.parentElement; paintMap(cv, b.dataset.map, +b.dataset.x, +b.dataset.y, false); });
+}
+function openMap(btn){
+  const zid=btn.dataset.map, m=MAPS[zid], x=+btn.dataset.x, y=+btn.dataset.y;
+  const dlg=$("#mapDlg");
+  dlg.querySelector("h3").textContent = m.de + (m.en!==m.de ? ` (${m.en})` : "");
+  dlg.querySelector(".mapinfo").textContent = `Markierung bei ${x}, ${y}`;
+  const cv=dlg.querySelector("canvas"); paintMap(cv, zid, x, y, true);
+  dlg.hidden=false; dlg.querySelector(".mapclose").focus();
+}
+function closeMap(){ $("#mapDlg").hidden=true; }
 function chipSide(s){ const [t,c]=SIDE[s]; return `<span class="chip ${c}">${t}</span>`; }
 const enSub = (de, en) => de && en && de!==en ? `<span class="en">${esc(en)}</span>` : "";
 
@@ -172,7 +244,7 @@ function questHTML(q){
       <dt>Ziel</dt><dd>${esc(q.objDe||q.obj)}${q.objDe&&q.objEn?`<div class="en">${esc(q.objEn)}</div>`:""}</dd>
       <dt>Vorgehen</dt><dd><ol class="steps">${(q.steps||[]).map(s=>`<li>${esc(s)}</li>`).join("")}</ol></dd>
       <dt>Belohnung</dt><dd>${rewards}</dd>
-    </dl></div>${miniMap(xy, (g&&g.zone)||"")}</div></div>`;
+    </dl></div>${miniMap(xy, (g&&g.zone)||"", g&&g.zid)}</div></div>`;
 }
 
 function renderDungeon(d){
@@ -186,7 +258,7 @@ function renderDungeon(d){
     body = quests.map(questHTML).join("") || `<p class="muted">Für deine Fraktion gibt es hier keine Quests.</p>`;
     if(hiddenQ && !state.showAll) body += `<p class="hidden-note">${hiddenQ} Quest(s) der anderen Fraktion ausgeblendet. <button class="link" id="showOther">Anzeigen</button></p>`;
   }
-  const entranceMap = miniMap(d.xy, d.xyZone||d.zone) + (d.xy2?miniMap(d.xy2.xy, d.xy2.zone):"");
+  const entranceMap = miniMap(d.xy, d.xyZone||d.zone, d.xyZid) + (d.xy2?miniMap(d.xy2.xy, d.xy2.zone, d.xy2.zid):"");
   if(state.inner==="route"){
     body = `<div class="box mapwrap"><div><h4>Weg zum Eingang</h4>${esc(d.entrance)}</div>${entranceMap}</div>
       <h3 class="sec-title">Ablauf im Dungeon</h3>
@@ -203,6 +275,7 @@ function renderDungeon(d){
     <div class="inner-tabs">${tabs.map(([k,t])=>`<button class="tab ${state.inner===k?"on":""}" data-inner-tab="${k}">${t}</button>`).join("")}</div>
     ${body}`;
   const so = $("#showOther"); if(so) so.onclick = () => { state.showAll = true; save(); render(); };
+  paintAllMaps($("#detail"));
 }
 
 function renderMonster(m){
@@ -243,6 +316,10 @@ $("#closeDetail").onclick = () => { state.sel=null; render(); };
 document.addEventListener("click", e=>{
   const it = e.target.closest("[data-inner-tab]");
   if(it){ state.inner = it.dataset.innerTab; state.openBoss=null; renderDetail(); return; }
+  const mb = e.target.closest("[data-map]");
+  if(mb){ openMap(mb); return; }
+  if(e.target.closest(".mapclose") || e.target.id==="mapDlg"){ closeMap(); return; }
+  if(e.target.closest("#mapDlg")) return;
   const card = e.target.closest(".item");
   if(card){ showTip(card); return; }
   hideTip();
@@ -297,5 +374,6 @@ document.addEventListener("mousemove", e=>{
 });
 document.addEventListener("focusin", e=>{ const el=e.target.closest(".item"); if(el) showTip(el); });
 document.addEventListener("scroll", hideTip, true);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeMap(); hideTip(); } });
 
 render();
