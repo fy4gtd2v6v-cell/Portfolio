@@ -33,7 +33,7 @@ const match = (...parts) => !state.search || parts.join(" ").toLowerCase().inclu
 
 function itemHTML(i){
   return `<div class="item" data-ik="${esc(i._k)}" tabindex="0">
-    <div class="slot q-${i.q}">${SLOT_ICON(i.s)}</div>
+    <div class="slot q-${i.q}">${itemIcon(i)}</div>
     <div style="min-width:0"><div class="nm q-${i.q}">${esc(i.de||i.n)}</div>
     <div class="ty">${i.de && i.de!==i.n?`<i>${esc(i.n)}</i> · `:""}${esc(i.s)}${i.c?` · ${String(i.c).replace(".",",")} %`:""}${i.v===0?` · <span title="Quelle in den Datenbanken nicht belegt">⚠</span>`:""}</div></div></div>`;
 }
@@ -174,7 +174,7 @@ function renderList(){
     groups.forEach(g=>{
       h += `<div class="list-head">${g}</div>`;
       ms.filter(m=>m.type===g).forEach(m=>{ h += `<button class="entry ${state.sel==="mon:"+m.i?"on":""}" data-m="${m.i}">
-        <svg class="ico" style="padding:2px"><use href="#sym-skull"/></svg><div class="t"><b>${esc(m.de||m.name)}</b><span>${esc(m.zoneDe||m.zone)}</span></div><span class="lvl">${esc(m.level)}</span></button>`; });
+        <span class="ico embwrap">${emblem(m.name)}</span><div class="t"><b>${esc(m.de||m.name)}</b><span>${esc(m.zoneDe||m.zone)}</span></div><span class="lvl">${esc(m.level)}</span></button>`; });
     });
     if(!ms.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
   }
@@ -184,7 +184,7 @@ function renderList(){
       .sort((a,b)=>order[a.q]-order[b.q] || (a.de||a.n).localeCompare(b.de||b.n));
     const shown = its.slice(0,400);
     shown.forEach(i=>{ h += `<button class="entry" ${i.did?`data-d="${i.did}"`:`data-m="${i.mid}"`} ${i.boss?`data-boss-open="${esc(i.boss)}"`:""} ${i.reward?`data-inner="quests" data-q="${esc(i.qn)}"`:""} data-ik="${esc(i.key)}">
-      <div class="ico q-${i.q}" style="border-color:currentColor">${SLOT_ICON(i.s)}</div>
+      <div class="ico q-${i.q} icimg" style="border-color:currentColor">${itemIcon(i)}</div>
       <div class="t"><b class="q-${i.q}">${esc(i.de||i.n)}</b><span>${esc(i.src)} · ${esc(i.where)}</span></div></button>`; });
     if(its.length>shown.length) h += `<p class="hidden-note" style="color:#b59d77">${its.length-shown.length} weitere – Suche oder Filter eingrenzen.</p>`;
     if(!its.length) h = `<p class="hidden-note" style="color:#b59d77">Keine Gegenstände gefunden.</p>`;
@@ -219,7 +219,7 @@ function bossHTML(b, open){
   const enNames = npcs.length ? npcs.map(n=>n.en).join(" & ") : b.name;
   const lvl = b.lvl ? (b.lvl==="??" ? `<span class="lvlb" title="Stufe ??">☠ ??</span>` : `<span class="lvlb">Stufe ${esc(b.lvl)}</span>`) : "";
   return `<details class="boss" ${open?"open":""} data-boss="${esc(b.name)}">
-    <summary><svg class="skull"><use href="#sym-${b.rare?"skull-rare":"skull"}"/></svg>
+    <summary>${emblem(b.name, "skull emb"+(b.rare?" rare":""))}
       <h3>${esc(b.de||b.name)}${enSub(b.de||b.name, enNames)}</h3>${lvl}<span class="tag">${esc(b.tag||"")}</span><span class="arrow">▶</span></summary>
     <div class="body"><p class="tactic"><b>Taktik:</b> ${esc(b.tactic)}</p>
       ${b.drops.length?`<div class="loot">${b.drops.map(itemHTML).join("")}</div>`:`<p class="hidden-note">Keine besonderen Drops in der Datenbank.</p>`}
@@ -266,6 +266,7 @@ function renderDungeon(d){
   }
   const facChip = d.faction==="N" ? `<span class="chip n">Beide Fraktionen</span>` : `<span class="chip ${SIDE[d.faction][1]}">Vor allem ${SIDE[d.faction][0]}</span>`;
   $("#detail").innerHTML = `
+    <div class="banner">${scene(d)}</div>
     <div class="d-head"><div style="flex:1;min-width:220px">
       <h2>${esc(d.de)}</h2><div class="sub">${esc(d.name)} · ${esc(d.zone)}</div>
       <div class="chips"><span class="chip">Stufe ${d.level}</span>${d.raid?`<span class="chip h" style="background:#5b2a8a;border-color:#2c1046">Schlachtzug · ${d.size} Spieler</span>`:""}${facChip}<span class="chip">${d.bosses.length} Bosse</span></div>
@@ -281,7 +282,7 @@ function renderDungeon(d){
 function renderMonster(m){
   $("#detailTitle").textContent = m.de||m.name;
   const en = (m.npcs||[]).map(n=>n.en).join(", ");
-  $("#detail").innerHTML = `<div class="d-head"><svg style="width:56px;height:56px"><use href="#sym-skull"/></svg>
+  $("#detail").innerHTML = `<div class="d-head">${emblem(m.name, "emb big")}
     <div style="flex:1"><h2>${esc(m.de||m.name)}</h2><div class="sub">${esc(m.type)} · ${esc(m.zoneDe||m.zone)}${en?` · ${esc(en)}`:""}</div>
     <div class="chips"><span class="chip">Stufe ${esc(m.level)}</span></div></div></div>
     <p>${esc(m.desc)}</p>
@@ -346,7 +347,7 @@ function tipHTML(i){
     const cls = /^(Anlegen|Benutzen|Chance bei Treffer|Set):/.test(a) ? "tgr" : /^„/.test(a) ? "tq" : "tw";
     return b ? `<div class="tr ${cls}"><span>${esc(a)}</span><span>${esc(b)}</span></div>` : `<div class="${cls}">${esc(a)}</div>`;
   }).join("");
-  return `<div class="tn q-${i.q}">${esc(i.de||i.n)}</div>
+  return `${i.ic?`<img class="tipic" src="${ICON_URL(i.ic,"large")}" alt="" onerror="this.remove()">`:""}<div class="tn q-${i.q}">${esc(i.de||i.n)}</div>
     ${i.de && i.de!==i.n?`<div class="tg">${esc(i.n)}</div>`:""}
     ${lines || `<div class="tw">${esc(i.s)}</div>`}
     ${i.startsQuest?`<div class="ty2">Startet die Quest: ${esc(i.startsQuest)}</div>`:""}

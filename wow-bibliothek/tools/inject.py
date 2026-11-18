@@ -5,7 +5,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 html_p = os.path.join(here, '..', 'index.html')
 h = open(html_p, encoding='utf-8').read()
 data = json.load(open(f'{D}/db/enriched.json'))
-app = open(os.path.join(here, 'app.js'), encoding='utf-8').read()
+app = open(os.path.join(here, 'art.js'), encoding='utf-8').read() + '\n' + open(os.path.join(here, 'app.js'), encoding='utf-8').read()
 def js(arr):
     return '[\n' + ',\n'.join(json.dumps(x, ensure_ascii=False, separators=(',', ':')) for x in arr) + '\n]'
 header = '''/* =====================================================================

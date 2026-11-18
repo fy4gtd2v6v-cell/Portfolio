@@ -173,6 +173,7 @@ def item_entry(iid, src_names=(), quest=False):
     en = (w or {}).get('name') or (qi[0] if qi else None)
     if not en: return None
     e = {'id': iid, 'n': en, 'de': deI.get(str(iid)) or en}
+    if w and w.get('icon'): e['ic'] = w['icon']
     if w:
         q = w['quality'].lower()
         e['q'] = 'quest' if (w['class'] == 'Quest' or quest) and q in ('common', 'poor') else q
