@@ -22,8 +22,10 @@ header = '''/* =================================================================
    ===================================================================== */
 '''
 maps = json.load(open(f'{D}/db/maps.json')) if os.path.exists(f'{D}/db/maps.json') else {}
+fnew = json.load(open(f'{D}/db/forever_new.json')) if os.path.exists(f'{D}/db/forever_new.json') else {'FOREVER': [], 'MAPS': {}}
+maps.update(fnew['MAPS'])
 mapjs = '/* Zonenkarten (tools/build_maps.py): Dichteraster 75x50 aus Spawn-Positionen, Flugpunkte f, Dungeon-Eingänge d */\nconst MAPS = {\n' + ',\n'.join(json.dumps(k) + ':' + json.dumps(v, ensure_ascii=False, separators=(',', ':')) for k, v in maps.items()) + '\n};\n\n'
-block = header + mapjs + 'const DUNGEONS = ' + js(data['DUNGEONS']) + ';\n\nconst MONSTERS = ' + js(data['MONSTERS']) + ';\n\n' + app
+block = header + mapjs + 'const DUNGEONS = ' + js(data['DUNGEONS']) + ';\n\nconst MONSTERS = ' + js(data['MONSTERS']) + ';\n\n/* Neu in World of Warcraft: Forever (tools/build_forever_new.py) */\nconst FOREVER = ' + js(fnew['FOREVER']) + ';\n\n' + app
 a = h.index('<script>') + len('<script>\n')
 b = h.rindex('</script>')
 h = h[:a] + block + h[b:]

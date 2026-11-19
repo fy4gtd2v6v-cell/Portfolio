@@ -9,6 +9,7 @@ W=/tmp/wowdb && mkdir -p $W/db && cd $W
 git clone --depth 1 https://github.com/Questie/QuestieDB questiedb-src
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Questie/Questie questie-src
 (cd questie-src && git sparse-checkout set Localization)
+# für Forever zusätzlich: questiedb-src/src/corrections enthält Ergänzungen und Gebietsnamen
 mkdir wci && (cd wci && npm pack wow-classic-items@2.0.1 && tar xzf *.tgz)
 mkdir wci082 && (cd wci082 && npm pack wow-classic-items@0.8.2 && tar xzf *.tgz)
 
@@ -21,6 +22,8 @@ python3 build_dungeons.py questiedb-src db/dungeons.json    # Dungeon-Eingänge
 node extract.cjs db/mine.json        # aktuelle Daten aus index.html
 python3 enrich.py $W                 # -> db/enriched.json + db/report.md
 python3 build_maps.py $W             # -> db/maps.json (eigene Zonenkarten)
+python3 build_forever_delta.py questiedb-src db/forever_delta.json  # Forever-Ergänzungsdaten
+python3 build_forever_new.py $W      # -> db/forever_new.json (neue Gebiete und Dungeons)
 python3 inject.py $W                 # -> index.html
 ```
 

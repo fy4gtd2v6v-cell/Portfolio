@@ -74,7 +74,10 @@ const BOSS_ART = {
  "Kurinnaxx":"insect","General Rajaxx":"insect","Moam":"earth","Buru the Gorger":"insect","Ayamiss the Hunter":"insect","Ossirian the Unscarred":"earth",
  "The Prophet Skeram":"insect","Silithid Royalty (Bug Trio)":"insect","Battleguard Sartura":"insect","Fankriss the Unyielding":"insect","Viscidus":"slime","Princess Huhuran":"insect","Twin Emperors":"king","Ouro":"insect","C'Thun":"eye",
  "Anub'Rekhan / Faerlina / Maexxna":"spider","Noth / Heigan / Loatheb":"undead","Razuvious / Gothik / Four Horsemen":"undead","Patchwerk / Grobbulus / Gluth / Thaddius":"undead","Sapphiron":"dragon","Kel'Thuzad":"undead",
- "Azuregos":"dragon","Lord Kazzak":"demon","Drachen des Albtraums":"dragon","Jadefire Satyrs":"demon","Winterfall Furbolgs":"beast","Deadwood Furbolgs":"beast","Defias Pillager / Looter":"humanoid"
+ "Azuregos":"dragon","Lord Kazzak":"demon","Drachen des Albtraums":"dragon","Jadefire Satyrs":"demon","Winterfall Furbolgs":"beast","Deadwood Furbolgs":"beast","Defias Pillager / Looter":"humanoid",
+ "Durgen Dirgehammer":"undead","Faldrim Anvilmar":"ghost","Magmatus":"fire","Plunder":"beast","Bjork":"undead","Broodwidow":"spider","Lordaeron Captain":"undead",
+ "Rath'mael":"undead","The Abandoned":"undead","The Baron":"undead","Viktor the Vile":"undead","Dragonmaw Thaumaturgist":"caster","Dragonmaw Warder":"humanoid",
+ "Highland Horror":"plant","Shadetooth":"beast","Thicket Lurker":"beast","Thicket Matriarch":"beast"
 };
 let _gid = 0;
 function emblem(name, cls="emb"){
@@ -93,10 +96,10 @@ const SCENE_PAL = {
   castle:["#0d1020","#2a2f50","#c8d2ff"], castle2:["#0c0f14","#2a333d","#a8c8b8"], water:["#04141f","#0e3b52","#7fd0ff"], prison:["#101012","#2f2f36","#e8c070"], cathedral:["#1a0606","#5a1414","#ffe0a0"],
   pyramid:["#3a2210","#b8783a","#ffe2a0"], forge:["#1a0805","#4a1508","#ff9040"], ruins:["#0f140a","#3a4220","#c8e070"], tech:["#0a1418","#1e3a44","#7ff0d0"], thorns:["#20140a","#6a4a22","#ffd080"],
   thorns2:["#14101a","#3a3048","#c0b0ff"], titan:["#1a140c","#5a4630","#ffe0b0"], temple:["#0a1810","#1e4a30","#a0ffb0"], elven:["#0e1424","#2a3a5e","#d0e0ff"], mountain:["#1a0a08","#4a1e14","#ff8a50"],
-  mountain2:["#100608","#3a1018","#ff5050"], lair:["#0a0606","#2a1210","#ff6030"], jungle:["#06140a","#1a4a24","#d0ff90"], desert:["#3a2a10","#c8963a","#fff0b0"], desert2:["#2a1608","#a0602a","#ffd27a"], necro:["#0a0f0a","#1a2a1a","#7aff7a"]
+  mountain2:["#100608","#3a1018","#ff5050"], lair:["#0a0606","#2a1210","#ff6030"], jungle:["#06140a","#1a4a24","#d0ff90"], desert:["#3a2a10","#c8963a","#fff0b0"], desert2:["#2a1608","#a0602a","#ffd27a"], necro:["#0a0f0a","#1a2a1a","#7aff7a"], meadow:["#2a4a6a","#8ab0c8","#ffe6a0"], sky:["#1a3a6a","#6a9ad0","#fff2c0"]
 };
 function scene(d){
-  const th = SCENE_OF[d.id] || "cave", [a,b,c] = SCENE_PAL[th] || SCENE_PAL.cave, id="s"+d.id;
+  const th = SCENE_OF[d.id] || d.theme || "cave", [a,b,c] = SCENE_PAL[th] || SCENE_PAL.cave, id="s"+d.id;
   const base = th.replace(/\d$/,"");
   const sil = "#0b0705";
   let fg = "";
@@ -123,6 +126,8 @@ function scene(d){
     case "mountain": fg = `<path d="M0 180L180 90l60 30 160-110 160 110 60-30 180 90z" fill="${sil}"/><path d="M370 30q30-40 60 0" stroke="${c}" stroke-width="6" fill="none" opacity=".7"/><path d="M380 10q20-20 40 0" stroke="${c}" stroke-width="4" fill="none" opacity=".4"/>`+(d.id==="bwl"?`<path d="M560 60l40-20 20 10 40-20-10 20 30 10-40 4-20 16z" fill="${sil}"/>`:""); break;
     case "lair": fg = stalactites()+`<path d="M250 150c40-50 120-60 170-40l60-30-20 40 60 10-70 10c-20 30-90 40-150 20z" fill="#000"/><ellipse cx="460" cy="112" rx="7" ry="3" fill="${c}"/>`+ground(160); break;
     case "desert": fg = `<path d="M0 150Q150 120 300 145T600 135T800 150V180H0Z" fill="${b}"/><path d="M0 165Q200 150 400 165T800 160V180H0Z" fill="${sil}"/><path d="M330 160V40l20-20 20 20v120M430 160V40l20-20 20 20v120" fill="${sil}"/><path d="M330 60h140" stroke="${sil}" stroke-width="18"/><circle cx="400" cy="100" r="22" fill="${c}" opacity=".6"/>`; break;
+    case "meadow": fg = `<circle cx="640" cy="50" r="24" fill="${c}" opacity=".9"/><path d="M0 130Q160 90 320 125T640 110T800 120V180H0Z" fill="#2a3a18"/><path d="M0 150Q200 120 420 150T800 145V180H0Z" fill="${sil}"/><path d="M80 180Q300 150 420 160T760 180" stroke="${b}" stroke-width="10" fill="none" opacity=".8"/>`+[120,180,560,610,700].map((x,i)=>`<path d="M${x} ${150-i%2*12}v-30" stroke="${sil}" stroke-width="5"/><circle cx="${x}" cy="${118-i%2*12}" r="${16+i%3*4}" fill="${sil}"/>`).join(""); break;
+    case "sky": fg = `<circle cx="160" cy="45" r="22" fill="${c}"/>`+[[300,95,120],[560,70,90],[120,130,70],[700,120,60]].map(([x,y,w])=>`<path d="M${x-w} ${y}h${2*w}l-${w*.35} 22l-${w*.3} 28l-${w*.35}-18l-${w*.3}-10z" fill="${sil}"/><path d="M${x-w*.4} ${y}v-28l10-10 10 10v28" fill="${sil}"/>`).join("")+`<path d="M0 170Q200 160 400 168T800 165" stroke="#fff" stroke-width="14" opacity=".25" fill="none"/>`; break;
     case "necro": fg = `<path d="M260 100l40-40h200l40 40-40 30H300z" fill="${sil}"/><path d="M300 60l20-30h160l20 30z" fill="${sil}"/><path d="M340 130l60 40 60-40" fill="${sil}"/><ellipse cx="400" cy="140" rx="160" ry="16" fill="${c}" opacity=".18"/>`+ground(176)+`<path d="M560 176v-30l10-10 10 10v30M210 176v-20l8-8 8 8v20" fill="${sil}"/>`; break;
   }
   const stars = ["castle","prison","cathedral","elven","necro","ruins"].includes(base) ? R(18, 7).map((r,i)=>`<circle cx="${(r*800).toFixed(0)}" cy="${(rnd[i]*70+5).toFixed(0)}" r="${(rnd[i+18]*1.4+.4).toFixed(1)}" fill="#fff" opacity=".6"/>`).join("") : "";

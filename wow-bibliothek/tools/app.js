@@ -1,6 +1,6 @@
 /* ===================== Hilfsfunktionen ===================== */
 const $ = s => document.querySelector(s);
-const QUAL = {poor:"Schlecht",common:"Gewöhnlich",uncommon:"Selten",rare:"Rar",epic:"Episch",legendary:"Legendär",quest:"Quest"};
+const QUAL = {unknown:"Unbekannt",poor:"Schlecht",common:"Gewöhnlich",uncommon:"Selten",rare:"Rar",epic:"Episch",legendary:"Legendär",quest:"Quest"};
 const SIDE = {A:["Allianz","a"],H:["Horde","h"],B:["Beide","n"],N:["Neutral","n"]};
 const SLOT_ICON = s => /schwert/i.test(s)?"⚔":/axt/i.test(s)?"🪓":/dolch/i.test(s)?"🗡":/streitkolben|hammer/i.test(s)?"🔨":/zauberstab|stab|stangen/i.test(s)?"🪄":/bogen|armbrust|schuss|wurf/i.test(s)?"🏹":/schild/i.test(s)?"🛡":/finger/i.test(s)?"💍":/hals/i.test(s)?"📿":/rücken/i.test(s)?"🧣":/tasche/i.test(s)?"👜":/schmuck/i.test(s)?"✦":/reittier/i.test(s)?"🐎":/quest|schlüssel|startet/i.test(s)?"!":/kopf/i.test(s)?"⛑":/hände/i.test(s)?"🧤":/füße/i.test(s)?"🥾":/stoff$|material|handwerk/i.test(s)?"🧵":"⛨";
 const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -15,6 +15,7 @@ const bossName = b => b.de || b.name;
 const variantFor = q => (q.variants||[]).find(v=>v.side===myside()) || (q.variants||[]).find(v=>v.side==="B") || (q.variants||[])[0] || null;
 
 /* Gegenstände: Register für Tooltips, Suche und Beute-Liste */
+if(typeof FOREVER!=="undefined") DUNGEONS.push(...FOREVER);
 const ITEMS = {};
 const ALL_ITEMS = [];
 function reg(i, src, where, ref){
@@ -144,7 +145,7 @@ function renderList(){
   if(state.tab==="dungeons"){
     const ds = DUNGEONS.filter(d=>match(d.name,d.de,d.zone,d.bosses.map(b=>b.name+" "+(b.de||"")+" "+b.drops.map(x=>x.n+" "+(x.de||"")).join(" ")).join(" "),d.quests.map(q=>q.name+" "+(q.de||"")).join(" ")))
       .sort((a,b)=>a.min-b.min);
-    [["Dungeons",ds.filter(d=>!d.raid)],["Schlachtzüge",ds.filter(d=>d.raid)]].forEach(([title,arr])=>{
+    [["Dungeons",ds.filter(d=>!d.raid&&!d.forever)],["Schlachtzüge",ds.filter(d=>d.raid)],["Neu in Forever · Gebiete",ds.filter(d=>d.kind==="zone")],["Neu in Forever · Dungeons",ds.filter(d=>d.forever&&d.kind==="dungeon")]].forEach(([title,arr])=>{
       if(!arr.length) return;
       h += `<div class="list-head">${title}</div>`;
       arr.forEach(d=>{
@@ -159,10 +160,10 @@ function renderList(){
   }
   if(state.tab==="quests"){
     let any=false;
-    [...DUNGEONS].sort((a,b)=>(a.raid?1:0)-(b.raid?1:0) || a.min-b.min).forEach(d=>{
+    [...DUNGEONS].sort((a,b)=>(a.forever?2:a.raid?1:0)-(b.forever?2:b.raid?1:0) || a.min-b.min).forEach(d=>{
       const qs = d.quests.filter(q=>{ const v=variantFor(q); return questVisible(q) && match(q.name,q.de,q.giver,v&&v.giver&&(v.giver.de+" "+v.giver.en),q.objDe,d.name,d.de); });
       if(!qs.length) return; any=true;
-      h += `<div class="list-head">${esc(d.de)} · ${d.raid?"Schlachtzug":d.level}</div>`;
+      h += `<div class="list-head">${d.forever?"✦ ":""}${esc(d.de)} · ${d.raid?"Schlachtzug":d.level}</div>`;
       qs.forEach(q=>{ const v=variantFor(q); h += `<button class="entry" data-d="${d.id}" data-inner="quests" data-q="${esc(q.name)}">
         <div class="ico" style="color:#ffd100">!</div><div class="t"><b>${esc(q.de||q.name)}</b><span>${esc(v&&v.giver?v.giver.de:q.giver)}</span></div>${chipSide(q.side)}</button>`; });
     });
@@ -202,15 +203,20 @@ function renderWelcome(){
     <p class="muted">Wähle links einen Dungeon, eine Quest, ein Monster oder einen Gegenstand.<br>
     Quests werden für die ${fac?"Horde":"Allianz"} gefiltert – oben rechts kannst du die Fraktion wechseln.</p>
     <div class="stat-row">
-      <div class="stat"><b>${DUNGEONS.filter(d=>!d.raid).length}</b>Dungeons</div>
+      <div class="stat"><b>${DUNGEONS.filter(d=>!d.raid&&d.kind!=="zone").length}</b>Dungeons</div>
       <div class="stat"><b>${DUNGEONS.filter(d=>d.raid).length}</b>Schlachtzüge</div>
       <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.bosses.length,0)}</b>Bosse</div>
       <div class="stat"><b>${DUNGEONS.reduce((a,d)=>a+d.quests.filter(q=>q.side==="B"||q.side===myside()).length,0)}</b>${fac?"Horde":"Allianz"}-Quests</div>
       <div class="stat"><b>${new Set(ALL_ITEMS.map(i=>i.id||i.n)).size}</b>Gegenstände</div>
     </div>
+    <div class="box" style="text-align:left;max-width:640px;margin:0 auto 12px">
+      <h4>✦ Neu in World of Warcraft: Forever</h4>
+      ${DUNGEONS.filter(d=>d.forever).sort((a,b)=>(a.kind>b.kind?-1:1)||a.min-b.min).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.kind==="zone"?"Gebiet":"Dungeon"}, ${d.level})</span>`).join(" · ")}
+      <p class="hidden-note" style="margin:6px 0 0">Angekündigt, aber noch ohne Daten in der Datenbank: Krol'dok Stronghold, The Drowned City, Alcaz Prison, Blackmaw Hold sowie die neuen Schlachtzüge.</p>
+    </div>
     <div class="box" style="text-align:left;max-width:640px;margin:0 auto">
       <h4>Empfohlene Reihenfolge (${fac?"Horde":"Allianz"})</h4>
-      ${DUNGEONS.filter(d=>!d.raid&&(d.faction==="N"||d.faction===myside())).sort((a,b)=>a.min-b.min).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.level})</span>`).join(" → ")}
+      ${DUNGEONS.filter(d=>!d.raid&&!d.forever&&(d.faction==="N"||d.faction===myside())).sort((a,b)=>a.min-b.min).map(d=>`<button class="link" data-d="${d.id}">${esc(d.de)}</button> <span class="muted">(${d.level})</span>`).join(" → ")}
     </div></div>`;
 }
 
@@ -229,9 +235,12 @@ function bossHTML(b, open){
 function questHTML(q){
   const v = variantFor(q); const g = v && v.giver;
   const others = (q.variants||[]).filter(x=>x!==v && x.giver);
-  const xy = g && g.xy;
-  const giver = g ? `${esc(g.de)}${g.en!==g.de?` <i class="muted">(${esc(g.en)})</i>`:""}` : esc(q.giver);
-  const where = g ? esc(g.zone||"") : esc(q.loc);
+  const t = q.turnin;
+  const xy = (g && g.xy) || (t && t.xy);
+  const mapZone = (g && g.xy) ? g.zone : (t && t.zone) || "";
+  const mapZid = (g && g.xy) ? g.zid : t && t.zid;
+  const giver = g ? `${esc(g.de)}${g.en!==g.de?` <i class="muted">(${esc(g.en)})</i>`:""}` : (q.giver ? esc(q.giver) : `<i class="muted">nicht in der Datenbank (vermutlich Folgequest)</i>`);
+  const where = g ? esc(g.zone||"") : esc(q.loc||"–");
   const lvl = q.lvl ? `<span class="chip">Stufe ${q.lvl}${q.min?` · ab ${q.min}`:""}</span>` : "";
   const rewards = q.rewards && q.rewards.length ? `<div class="loot">${q.rewards.map(itemHTML).join("")}</div>` : esc(q.reward||"");
   return `<div class="quest" data-qname="${esc(q.name)}">
@@ -240,20 +249,24 @@ function questHTML(q){
     <div class="mapwrap"><div><dl class="qgrid">
       <dt>Questgeber</dt><dd>${giver}${g&&g.item?` <span class="chip">Gegenstand</span>`:""}${g&&g.object?` <span class="chip">Objekt</span>`:""}</dd>
       <dt>Fundort</dt><dd>${where}${xy?`<span class="coord">${xy[0]}, ${xy[1]}</span>`:""}</dd>
+      ${t?`<dt>Abgabe</dt><dd>${esc(t.de)}${t.en!==t.de?` <i class="muted">(${esc(t.en)})</i>`:""}${t.zone?` – ${esc(t.zone)}`:""}${t.xy?`<span class="coord">${t.xy[0]}, ${t.xy[1]}</span>`:""}</dd>`:""}
       ${others.length?`<dt>Andere Fraktion</dt><dd>${others.map(o=>`${SIDE[o.side][0]}: ${esc(o.giver.de)} – ${esc(o.giver.zone||"")}${o.giver.xy?` (${o.giver.xy[0]}, ${o.giver.xy[1]})`:""}`).join("<br>")}</dd>`:""}
       <dt>Ziel</dt><dd>${esc(q.objDe||q.obj)}${q.objDe&&q.objEn?`<div class="en">${esc(q.objEn)}</div>`:""}</dd>
-      <dt>Vorgehen</dt><dd><ol class="steps">${(q.steps||[]).map(s=>`<li>${esc(s)}</li>`).join("")}</ol></dd>
+      ${(q.steps||[]).length?`<dt>Vorgehen</dt><dd><ol class="steps">${q.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></dd>`:""}
       <dt>Belohnung</dt><dd>${rewards}</dd>
-    </dl></div>${miniMap(xy, (g&&g.zone)||"", g&&g.zid)}</div></div>`;
+    </dl></div>${miniMap(xy, mapZone, mapZid)}</div></div>`;
 }
 
 function renderDungeon(d){
   $("#detailTitle").textContent = d.de;
   const quests = d.quests.filter(questVisible);
   const hiddenQ = d.quests.length - quests.length;
-  const tabs = [["bosses","Bosse & Beute"],["quests",`Quests (${quests.length})`],["route","Vorgehen"]];
+  if(d.kind==="zone" && state.inner==="bosses") state.inner = "quests";
+  const tabs = d.kind==="zone" ? [["quests",`Quests (${quests.length})`],["route","Karte"]]
+    : [["bosses", d.forever ? "Bekannte Gegner & Beute" : "Bosse & Beute"],["quests",`Quests (${quests.length})`],["route","Vorgehen"]];
   let body = "";
-  if(state.inner==="bosses") body = d.bosses.map((b,bi)=>bossHTML(b, state.openBoss ? state.openBoss===b.name : bi<1)).join("");
+  if(state.inner==="bosses") body = (d.forever?`<p class="hidden-note">Neuer Forever-Dungeon: Die Datenbank kennt bisher nur einzelne Elite-Gegner mit ihren Drops, noch keine Bossreihenfolge und keine Taktiken.</p>`:"")
+    + (d.bosses.map((b,bi)=>bossHTML(b, state.openBoss ? state.openBoss===b.name : bi<1)).join("") || `<p class="muted">Für diesen Dungeon sind noch keine Gegner in der Datenbank.</p>`);
   if(state.inner==="quests"){
     body = quests.map(questHTML).join("") || `<p class="muted">Für deine Fraktion gibt es hier keine Quests.</p>`;
     if(hiddenQ && !state.showAll) body += `<p class="hidden-note">${hiddenQ} Quest(s) der anderen Fraktion ausgeblendet. <button class="link" id="showOther">Anzeigen</button></p>`;
@@ -262,17 +275,17 @@ function renderDungeon(d){
   if(state.inner==="route"){
     body = `<div class="box mapwrap"><div><h4>Weg zum Eingang</h4>${esc(d.entrance)}</div>${entranceMap}</div>
       <h3 class="sec-title">Ablauf im Dungeon</h3>
-      <ol class="steps" style="font-size:17px">${d.route.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`;
+      ${d.route.length?`<ol class="steps" style="font-size:17px">${d.route.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:`<p class="muted">Für diesen neuen Inhalt gibt es noch keinen beschriebenen Ablauf.</p>`}`;
   }
   const facChip = d.faction==="N" ? `<span class="chip n">Beide Fraktionen</span>` : `<span class="chip ${SIDE[d.faction][1]}">Vor allem ${SIDE[d.faction][0]}</span>`;
   $("#detail").innerHTML = `
     <div class="banner">${scene(d)}</div>
     <div class="d-head"><div style="flex:1;min-width:220px">
       <h2>${esc(d.de)}</h2><div class="sub">${esc(d.name)} · ${esc(d.zone)}</div>
-      <div class="chips"><span class="chip">Stufe ${d.level}</span>${d.raid?`<span class="chip h" style="background:#5b2a8a;border-color:#2c1046">Schlachtzug · ${d.size} Spieler</span>`:""}${facChip}<span class="chip">${d.bosses.length} Bosse</span></div>
+      <div class="chips"><span class="chip">Stufe ${d.level}</span>${d.raid?`<span class="chip h" style="background:#5b2a8a;border-color:#2c1046">Schlachtzug · ${d.size} Spieler</span>`:""}${facChip}${d.forever?`<span class="chip" style="background:#1d6a5a;color:#fff;border-color:#0b2f28">✦ Neu in Forever</span>`:`<span class="chip">${d.bosses.length} Bosse</span>`}</div>
     </div></div>
     <p>${esc(d.desc)}</p>
-    <div class="box mapwrap"><div><h4>Fundort / Eingang ${d.xy?`<span class="coord">${d.xy[0]}, ${d.xy[1]}</span>`:""}</h4>${esc(d.entrance)}</div>${entranceMap}</div>
+    <div class="box mapwrap"><div><h4>${d.kind==="zone"?"Wichtigster Questort":"Fundort / Eingang"} ${d.xy?`<span class="coord">${d.xy[0]}, ${d.xy[1]}</span>`:""}</h4>${esc(d.entrance)}</div>${entranceMap}</div>
     <div class="inner-tabs">${tabs.map(([k,t])=>`<button class="tab ${state.inner===k?"on":""}" data-inner-tab="${k}">${t}</button>`).join("")}</div>
     ${body}`;
   const so = $("#showOther"); if(so) so.onclick = () => { state.showAll = true; save(); render(); };
