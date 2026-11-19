@@ -5,7 +5,7 @@ const SIDE = {A:["Allianz","a"],H:["Horde","h"],B:["Beide","n"],N:["Neutral","n"
 const SLOT_ICON = s => /schwert/i.test(s)?"⚔":/axt/i.test(s)?"🪓":/dolch/i.test(s)?"🗡":/streitkolben|hammer/i.test(s)?"🔨":/zauberstab|stab|stangen/i.test(s)?"🪄":/bogen|armbrust|schuss|wurf/i.test(s)?"🏹":/schild/i.test(s)?"🛡":/finger/i.test(s)?"💍":/hals/i.test(s)?"📿":/rücken/i.test(s)?"🧣":/tasche/i.test(s)?"👜":/schmuck/i.test(s)?"✦":/reittier/i.test(s)?"🐎":/quest|schlüssel|startet/i.test(s)?"!":/kopf/i.test(s)?"⛑":/hände/i.test(s)?"🧤":/füße/i.test(s)?"🥾":/stoff$|material|handwerk/i.test(s)?"🧵":"⛨";
 const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-let state = {faction:"horde", tab:"dungeons", sel:null, inner:"bosses", search:"", showAll:false, lootQ:"all"};
+let state = {faction:"horde", tab:"dungeons", sel:null, inner:"bosses", search:"", showAll:false, lootQ:"all", onlyFo:false};
 try{ const s = JSON.parse(localStorage.getItem("azeroth-bib")||"{}"); if(s.faction) state.faction=s.faction; if(s.showAll) state.showAll=true; }catch(e){}
 const save = () => { try{ localStorage.setItem("azeroth-bib", JSON.stringify({faction:state.faction, showAll:state.showAll})); }catch(e){} };
 
@@ -16,6 +16,14 @@ const variantFor = q => (q.variants||[]).find(v=>v.side===myside()) || (q.varian
 
 /* Gegenstände: Register für Tooltips, Suche und Beute-Liste */
 if(typeof FOREVER!=="undefined") DUNGEONS.push(...FOREVER);
+/* Forever-Neuheiten in bekannten Dungeons einhängen (tools/build_forever_new.py) */
+if(typeof FOREVER_ADD!=="undefined") Object.entries(FOREVER_ADD).forEach(([did,a])=>{
+  const d = DUNGEONS.find(x=>x.id===did); if(!d) return;
+  d.quests.push(...a.quests);
+  Object.entries(a.drops||{}).forEach(([bn,items])=>{ const b=d.bosses.find(x=>x.name===bn); if(b) b.drops.push(...items.filter(i=>!b.drops.some(o=>o.id===i.id))); });
+});
+const FO_BADGE = `<span class="fo" title="Nur in World of Warcraft: Forever">✦ Forever</span>`;
+const hasFo = d => d.forever || d.quests.some(q=>q.fo) || d.bosses.some(b=>b.fo || b.drops.some(i=>i.fo));
 const ITEMS = {};
 const ALL_ITEMS = [];
 function reg(i, src, where, ref){
@@ -35,7 +43,7 @@ const match = (...parts) => !state.search || parts.join(" ").toLowerCase().inclu
 function itemHTML(i){
   return `<div class="item" data-ik="${esc(i._k)}" tabindex="0">
     <div class="slot q-${i.q}">${itemIcon(i)}</div>
-    <div style="min-width:0"><div class="nm q-${i.q}">${esc(i.de||i.n)}</div>
+    <div style="min-width:0"><div class="nm q-${i.q}">${esc(i.de||i.n)}${i.fo?` <span class="fo-star" title="Nur in Forever">✦</span>`:""}</div>
     <div class="ty">${i.de && i.de!==i.n?`<i>${esc(i.n)}</i> · `:""}${esc(i.s)}${i.c?` · ${String(i.c).replace(".",",")} %`:""}${i.v===0?` · <span title="Quelle in den Datenbanken nicht belegt">⚠</span>`:""}</div></div></div>`;
 }
 function miniMap(xy, label, zid){
@@ -130,13 +138,18 @@ const enSub = (de, en) => de && en && de!==en ? `<span class="en">${esc(en)}</sp
 function renderFilters(){
   const f = $("#filters");
   if(state.tab==="quests"){
-    f.innerHTML = `<div class="filter-row"><label><input type="checkbox" id="showAll" ${state.showAll?"checked":""}> Quests der anderen Fraktion zeigen</label></div>`;
+    f.innerHTML = `<div class="filter-row"><label><input type="checkbox" id="showAll" ${state.showAll?"checked":""}> Andere Fraktion zeigen</label><label><input type="checkbox" id="onlyFo" ${state.onlyFo?"checked":""}> ✦ Nur Forever-Neuheiten</label></div>`;
     $("#showAll").onchange = e => { state.showAll = e.target.checked; save(); render(); };
+    $("#onlyFo").onchange = e => { state.onlyFo = e.target.checked; renderList(); };
   } else if(state.tab==="loot"){
     f.innerHTML = `<div class="filter-row"><select id="lootQ" aria-label="Qualität">
-      ${["all","legendary","epic","rare","uncommon","common","quest"].map(q=>`<option value="${q}" ${state.lootQ===q?"selected":""}>${q==="all"?"Alle Qualitäten":QUAL[q]}</option>`).join("")}
-    </select></div>`;
+      ${["all","legendary","epic","rare","uncommon","common","quest","unknown"].map(q=>`<option value="${q}" ${state.lootQ===q?"selected":""}>${q==="all"?"Alle Qualitäten":QUAL[q]}</option>`).join("")}
+    </select><label><input type="checkbox" id="onlyFo" ${state.onlyFo?"checked":""}> ✦ Nur Forever-Neuheiten</label></div>`;
     $("#lootQ").onchange = e => { state.lootQ = e.target.value; renderList(); };
+    $("#onlyFo").onchange = e => { state.onlyFo = e.target.checked; renderList(); };
+  } else if(state.tab==="dungeons"){
+    f.innerHTML = `<div class="filter-row"><label><input type="checkbox" id="onlyFo" ${state.onlyFo?"checked":""}> ✦ Nur mit Forever-Neuheiten</label></div>`;
+    $("#onlyFo").onchange = e => { state.onlyFo = e.target.checked; renderList(); };
   } else f.innerHTML = "";
 }
 
@@ -144,7 +157,7 @@ function renderList(){
   const L = $("#list"); let h = "";
   if(state.tab==="dungeons"){
     const ds = DUNGEONS.filter(d=>match(d.name,d.de,d.zone,d.bosses.map(b=>b.name+" "+(b.de||"")+" "+b.drops.map(x=>x.n+" "+(x.de||"")).join(" ")).join(" "),d.quests.map(q=>q.name+" "+(q.de||"")).join(" ")))
-      .sort((a,b)=>a.min-b.min);
+      .filter(d=>!state.onlyFo || hasFo(d)).sort((a,b)=>a.min-b.min);
     [["Dungeons",ds.filter(d=>!d.raid&&!d.forever)],["Schlachtzüge",ds.filter(d=>d.raid)],["Neu in Forever · Gebiete",ds.filter(d=>d.kind==="zone")],["Neu in Forever · Dungeons",ds.filter(d=>d.forever&&d.kind==="dungeon")]].forEach(([title,arr])=>{
       if(!arr.length) return;
       h += `<div class="list-head">${title}</div>`;
@@ -153,7 +166,7 @@ function renderList(){
         const abbr = d.de.replace(/^(Der|Die|Das) /,"").split(/[\s'-]+/).filter(w=>/^[A-ZÄÖÜ]/.test(w)).map(w=>w[0]).join("").slice(0,2) || d.de[0];
         h += `<button class="entry ${state.sel===d.id?"on":""}" data-d="${d.id}" style="${own?"":"opacity:.62"}">
           <div class="ico">${abbr}</div>
-          <div class="t"><b>${esc(d.de)}</b><span>${esc(d.name)} · ${esc(d.zone)}</span></div><span class="lvl">${d.raid?d.size+"er":d.level}</span></button>`;
+          <div class="t"><b>${esc(d.de)}</b><span>${esc(d.name)} · ${esc(d.zone)}</span></div><span class="lvl">${d.raid?d.size+"er":d.level}${!d.forever&&hasFo(d)?`<br><span class="fo-star" title="Enthält Forever-Neuheiten">✦</span>`:""}</span></button>`;
       });
     });
     if(!ds.length) h = `<p class="hidden-note" style="color:#b59d77">Nichts gefunden.</p>`;
@@ -161,11 +174,11 @@ function renderList(){
   if(state.tab==="quests"){
     let any=false;
     [...DUNGEONS].sort((a,b)=>(a.forever?2:a.raid?1:0)-(b.forever?2:b.raid?1:0) || a.min-b.min).forEach(d=>{
-      const qs = d.quests.filter(q=>{ const v=variantFor(q); return questVisible(q) && match(q.name,q.de,q.giver,v&&v.giver&&(v.giver.de+" "+v.giver.en),q.objDe,d.name,d.de); });
+      const qs = d.quests.filter(q=>{ const v=variantFor(q); return questVisible(q) && (!state.onlyFo || q.fo) && match(q.name,q.de,q.giver,v&&v.giver&&(v.giver.de+" "+v.giver.en),q.objDe,d.name,d.de); });
       if(!qs.length) return; any=true;
       h += `<div class="list-head">${d.forever?"✦ ":""}${esc(d.de)} · ${d.raid?"Schlachtzug":d.level}</div>`;
       qs.forEach(q=>{ const v=variantFor(q); h += `<button class="entry" data-d="${d.id}" data-inner="quests" data-q="${esc(q.name)}">
-        <div class="ico" style="color:#ffd100">!</div><div class="t"><b>${esc(q.de||q.name)}</b><span>${esc(v&&v.giver?v.giver.de:q.giver)}</span></div>${chipSide(q.side)}</button>`; });
+        <div class="ico" style="color:#ffd100">!</div><div class="t"><b>${q.fo?`<span class="fo-star">✦</span> `:""}${esc(q.de||q.name)}</b><span>${esc(v&&v.giver?v.giver.de:q.giver)}</span></div>${chipSide(q.side)}</button>`; });
     });
     if(!any) h = `<p class="hidden-note" style="color:#b59d77">Keine Quests gefunden.</p>`;
   }
@@ -181,12 +194,12 @@ function renderList(){
   }
   if(state.tab==="loot"){
     const order = {legendary:0,epic:1,rare:2,uncommon:3,common:4,poor:5,quest:6};
-    const its = ALL_ITEMS.filter(i=>(state.lootQ==="all"||i.q===state.lootQ) && match(i.n,i.de,i.s,i.src,i.where))
+    const its = ALL_ITEMS.filter(i=>(state.lootQ==="all"||i.q===state.lootQ) && (!state.onlyFo || i.fo) && match(i.n,i.de,i.s,i.src,i.where))
       .sort((a,b)=>order[a.q]-order[b.q] || (a.de||a.n).localeCompare(b.de||b.n));
     const shown = its.slice(0,400);
     shown.forEach(i=>{ h += `<button class="entry" ${i.did?`data-d="${i.did}"`:`data-m="${i.mid}"`} ${i.boss?`data-boss-open="${esc(i.boss)}"`:""} ${i.reward?`data-inner="quests" data-q="${esc(i.qn)}"`:""} data-ik="${esc(i.key)}">
       <div class="ico q-${i.q} icimg" style="border-color:currentColor">${itemIcon(i)}</div>
-      <div class="t"><b class="q-${i.q}">${esc(i.de||i.n)}</b><span>${esc(i.src)} · ${esc(i.where)}</span></div></button>`; });
+      <div class="t"><b class="q-${i.q}">${i.fo?`<span class="fo-star">✦</span> `:""}${esc(i.de||i.n)}</b><span>${esc(i.src)} · ${esc(i.where)}</span></div></button>`; });
     if(its.length>shown.length) h += `<p class="hidden-note" style="color:#b59d77">${its.length-shown.length} weitere – Suche oder Filter eingrenzen.</p>`;
     if(!its.length) h = `<p class="hidden-note" style="color:#b59d77">Keine Gegenstände gefunden.</p>`;
   }
@@ -226,7 +239,7 @@ function bossHTML(b, open){
   const lvl = b.lvl ? (b.lvl==="??" ? `<span class="lvlb" title="Stufe ??">☠ ??</span>` : `<span class="lvlb">Stufe ${esc(b.lvl)}</span>`) : "";
   return `<details class="boss" ${open?"open":""} data-boss="${esc(b.name)}">
     <summary>${emblem(b.name, "skull emb"+(b.rare?" rare":""))}
-      <h3>${esc(b.de||b.name)}${enSub(b.de||b.name, enNames)}</h3>${lvl}<span class="tag">${esc(b.tag||"")}</span><span class="arrow">▶</span></summary>
+      <h3>${esc(b.de||b.name)}${b.fo?" "+FO_BADGE:""}${enSub(b.de||b.name, enNames)}</h3>${lvl}<span class="tag">${esc(b.tag||"")}</span><span class="arrow">▶</span></summary>
     <div class="body"><p class="tactic"><b>Taktik:</b> ${esc(b.tactic)}</p>
       ${b.drops.length?`<div class="loot">${b.drops.map(itemHTML).join("")}</div>`:`<p class="hidden-note">Keine besonderen Drops in der Datenbank.</p>`}
     </div></details>`;
@@ -244,7 +257,7 @@ function questHTML(q){
   const lvl = q.lvl ? `<span class="chip">Stufe ${q.lvl}${q.min?` · ab ${q.min}`:""}</span>` : "";
   const rewards = q.rewards && q.rewards.length ? `<div class="loot">${q.rewards.map(itemHTML).join("")}</div>` : esc(q.reward||"");
   return `<div class="quest" data-qname="${esc(q.name)}">
-    <h3>${esc(q.de||q.name)} ${chipSide(q.side)} ${lvl}</h3>
+    <h3>${esc(q.de||q.name)} ${chipSide(q.side)} ${lvl}${q.fo?" "+FO_BADGE:""}</h3>
     ${q.de && q.de!==q.name?`<div class="en" style="margin:-2px 0 6px">${esc(q.name)}</div>`:""}
     <div class="mapwrap"><div><dl class="qgrid">
       <dt>Questgeber</dt><dd>${giver}${g&&g.item?` <span class="chip">Gegenstand</span>`:""}${g&&g.object?` <span class="chip">Objekt</span>`:""}</dd>
@@ -365,6 +378,7 @@ function tipHTML(i){
     ${lines || `<div class="tw">${esc(i.s)}</div>`}
     ${i.startsQuest?`<div class="ty2">Startet die Quest: ${esc(i.startsQuest)}</div>`:""}
     <div class="ty2">Quelle: ${esc(i.src)}${i.c?` (${String(i.c).replace(".",",")} %)`:""}</div>
+    ${i.fo?`<div class="tfo">✦ Nur in World of Warcraft: Forever</div>`:""}
     ${i.v===0?`<div class="tg">⚠ Quelle in den Datenbanken nicht belegt</div>`:""}
     ${i.lvl?`<div class="tg">Gegenstandsstufe ${i.lvl}</div>`:""}`;
 }

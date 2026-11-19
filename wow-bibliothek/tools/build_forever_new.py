@@ -18,6 +18,9 @@ entr = json.load(open(f'{W}/db/dungeons.json'))
 zones_old = json.load(open(f'{W}/db/zones.json'))
 wci = {w['itemId']: w for w in json.load(open(f'{W}/wci082/package/data/json/data.json'))}
 ZN = delta['zones']
+NEW_Q = {k for k in delta['quest'] if k not in base['quest']['data']}
+NEW_N = {k for k in delta['npc'] if k not in base['npc']['data']}
+NEW_I = {k for k in delta['item'] if k not in base['item']['data'] and int(k) not in wci}
 
 def l10n(kind, var):
     out = {}
@@ -73,6 +76,7 @@ def item(iid):
     name = d.get('name') or (b[0] if b else None) or d.get('_label') or (w or {}).get('name')
     if not name: return None
     e = {'id': int(iid), 'n': name, 'de': deI.get(s) or name}
+    if s in NEW_I: e['fo'] = 1
     if w:  # bekannter Classic-Gegenstand: Qualität/Symbol aus wow-classic-items
         e.update(q=w['quality'].lower(), ic=w.get('icon'), lvl=w.get('itemLevel'))
         e['s'] = ' · '.join(x for x in (w.get('slot') or '', w.get('subclass') or '') if x and x != 'Non-equippable')
@@ -128,6 +132,7 @@ def quest(qid, v):
          'variants': [{'id': int(qid), 'side': side, 'giver': g}]}
     if dq and len(dq) > 1 and dq[1]: q['objDe'] = ' '.join(x for x in dq[1] if x)
     if turnin: q['turnin'] = turnin
+    if str(qid) in NEW_Q: q['fo'] = 1
     rw = [item(i) for i in dict.fromkeys(rewards.get(int(qid), []))]
     rw = [r for r in rw if r]
     if rw: q['rewards'] = rw
@@ -165,7 +170,8 @@ def known_enemies(zids):
         res.append({'name': n['name'], 'de': n['de'] if n['de'] != n['name'] else None, 'lvl': lv if n['min'] else None,
                     'rare': n['rank'] in (2, 4), 'tag': {1: 'Elite', 2: 'Seltene Elite', 3: 'Boss', 4: 'Selten'}.get(n['rank'], 'Gegner'),
                     'tactic': 'Noch keine Taktik erfasst – in den Datenbanken stehen bisher nur Name, Stufe und Fundort.',
-                    'npcs': [{'id': n['id'], 'en': n['name'], 'de': n['de'], 'lvl': lv}], 'drops': [x for x in it if x]})
+                    'npcs': [{'id': n['id'], 'en': n['name'], 'de': n['de'], 'lvl': lv}], 'drops': [x for x in it if x],
+                    **({'fo': 1} if str(n['id']) in NEW_N else {})})
     res.sort(key=lambda b: (-('Boss' == b['tag']), -('Elite' in b['tag']), b['name']))
     return res
 
@@ -235,7 +241,35 @@ for z in need:
     en, de = zname(z)
     maps[str(z)] = {'de': de, 'en': en, 'g': ''.join(CH[0 if c == 0 else 1 + min(34, int(math.log1p(c) / math.log1p(mx) * 34))] for r in g for c in r),
                     'f': flights.get(z, []), 'd': dg.get(z, []), 'n': len(pts[z])}
-json.dump({'FOREVER': out, 'MAPS': maps}, open(f'{W}/db/forever_new.json', 'w'), ensure_ascii=False)
+# ---------- Forever-Neuheiten in bekannten Classic-Dungeons ----------
+enriched = json.load(open(f'{W}/db/enriched.json'))
+DZ = {'rfc': 2437, 'dm': 1581, 'wc': 718, 'sfk': 209, 'bfd': 719, 'stocks': 717, 'sm': 796, 'zf': 1176, 'mara': 2100, 'brd': 1584,
+      'scholo': 2057, 'strat': 2017, 'gnomer': 721, 'rfk': 491, 'rfd': 722, 'ulda': 1337, 'st': 1477, 'dmaul': 2557, 'brs': 1583,
+      'mc': 2717, 'ony': 2159, 'bwl': 2677, 'zg': 1977, 'aq20': 3429, 'aq40': 3428, 'naxx': 3456}
+zone2d = {}
+for did, z in DZ.items():
+    zone2d[z] = did
+    for a in ((entr.get(str(z)) or [None, None])[1] or []): zone2d[a] = did
+zone2d.update({978: 'zf', 1417: 'st', 1517: 'ulda', 133: 'gnomer', 1717: 'rfk'})
+add = defaultdict(lambda: {'quests': [], 'drops': {}})
+for k in sorted(NEW_Q, key=int):
+    v = delta['quest'][k]; did = zone2d.get(v.get('zoneOrSort'))
+    if did and (v.get('name') or v.get('_label')):
+        q = quest(int(k), v)
+        if not re.search(r'\b(TEST|NYI|DEPRECATED|UNUSED)\b|\[', q['name'], re.I): add[did]['quests'].append(q)
+boss_of = {}
+for d in enriched['DUNGEONS']:
+    for b in d['bosses']:
+        for n in b.get('npcs', []): boss_of[n['id']] = (d['id'], b['name'])
+for k in NEW_I:
+    v = delta['item'][k]; src = (v.get('npcDrops') or []) + (v.get('npcDrops_add') or [])
+    hits = [boss_of[n] for n in src if n in boss_of]
+    if hits and len(set(src)) <= 3:      # nur bossspezifische Drops, keine breit gestreuten Rezepte
+        it = item(k)
+        if it:
+            for did, bn in dict.fromkeys(hits): add[did]['drops'].setdefault(bn, []).append(it)
+json.dump({'FOREVER': out, 'MAPS': maps, 'FOREVER_ADD': add}, open(f'{W}/db/forever_new.json', 'w'), ensure_ascii=False)
 for e in out:
     print(f"{e['de']:32} {e['kind']:8} Stufe {e['level']:8} Quests {len(e['quests']):4} Gegner {len(e['bosses']):3} Eingang/Hub {e.get('xy')} {e.get('xyZone','')}")
+print('Ergänzungen in Classic-Dungeons:', {d: (len(a['quests']), sum(len(x) for x in a['drops'].values())) for d, a in add.items()})
 print('Karten:', {m['de']: m['n'] for m in maps.values()})
